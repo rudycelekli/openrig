@@ -2275,7 +2275,30 @@ export class QueueRepository {
    * view bridge.
    */
   update(input: QueueUpdateInput): QueueItem {
-    const txn = this.db.transaction(() => this.updateInTransactionalContext(input));
+    const txn = this.db.transaction(() => {
+      const source = this.getById(input.qitemId);
+      if (source && input.state && isTerminalState(input.state)
+        && input.state !== source.state && input.closureReason === "handed_off_to") {
+        const target = input.closureTarget ?? "";
+        const targetRow = this.getById(target);
+        const successor = this.db.prepare(
+          `SELECT 1 FROM queue_items s
+            WHERE ${targetRow ? "s.qitem_id" : "s.destination_session"} = ? AND s.qitem_id != ?
+              AND (s.handed_off_from = ? OR EXISTS (
+                SELECT 1 FROM json_each(s.chain_of_record) WHERE value = ?
+              )) LIMIT 1`,
+        ).get(target, source.qitemId, source.qitemId, source.qitemId);
+        if (!successor) {
+          throw new QueueRepositoryError(
+            "handoff_successor_required",
+            "Generic handed_off_to closure requires an existing successor with matching destination and source lineage. Use rig queue handoff or rig queue handoff-and-complete to create and transfer custody atomically (including cross-host handoffs). Nothing was written.",
+          );
+        }
+      }
+      // Atomic workflow/mission-control writers use updateWithinTransaction;
+      // their successor may be created after the close inside the same transaction.
+      return this.updateInTransactionalContext(input);
+    });
     const result = txn();
     for (const event of result.persistedEvents) this.eventBus.notifySubscribers(event);
     return this.getByIdOrThrow(input.qitemId);

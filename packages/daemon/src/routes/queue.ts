@@ -120,6 +120,7 @@ export function queueRoutes(): Hono {
         : err.code === "missing_closure_reason" ? 400
         : err.code === "invalid_closure_reason" ? 400
         : err.code === "missing_closure_target" ? 400
+        : err.code === "handoff_successor_required" ? 400
         : err.code === "invalid_state" ? 400
         : err.code === "state_or_note_required" ? 400
         : err.code === "note_append_fields_not_admitted" ? 400

@@ -45,6 +45,12 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
     return repo.create({ sourceSession: "sender@r", destinationSession: dest, body: "work" });
   }
 
+  /** Existing pre-guard custody records remain readable. Seed those historical
+   * facts through the transaction primitive, rather than the now-guarded generic verb. */
+  function writeLegacyHandoff(input: Parameters<QueueRepository["update"]>[0]): void {
+    db.transaction(() => repo.updateWithinTransaction(input))();
+  }
+
   /** Fixture aging of EXISTING facts via SQL — product code never sees an injected clock. */
   function ageCreated(qitemId: string, minutes: number): void {
     const past = new Date(Date.now() - minutes * 60_000).toISOString();
@@ -212,7 +218,7 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
     const unresolved = await mkRow();
     repo.claim({ qitemId: unresolved.qitemId, destinationSession: "worker@r" });
     const missing = "qitem-20990101000000-deadbeef";
-    repo.update({
+    writeLegacyHandoff({
       qitemId: unresolved.qitemId,
       actorSession: "worker@r",
       state: "done",
@@ -238,7 +244,7 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
     });
     const resolved = await mkRow();
     repo.claim({ qitemId: resolved.qitemId, destinationSession: "worker@r" });
-    repo.update({
+    writeLegacyHandoff({
       qitemId: resolved.qitemId,
       actorSession: "worker@r",
       state: "done",
@@ -254,7 +260,7 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
     const a = await repo.create({ qitemId: "qitem-local-a", sourceSession: "worker@r", destinationSession: "a@r", body: "a" });
     const b = await repo.create({ qitemId: "qitem-local-b", sourceSession: "worker@r", destinationSession: "b@r", body: "b" });
     const complete = await mkRow();
-    repo.update({
+    writeLegacyHandoff({
       qitemId: complete.qitemId,
       actorSession: "worker@r",
       state: "done",
@@ -263,7 +269,7 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
     });
     const partial = await mkRow();
     const missing = "qitem-local-missing";
-    repo.update({
+    writeLegacyHandoff({
       qitemId: partial.qitemId,
       actorSession: "worker@r",
       state: "done",
@@ -282,7 +288,7 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
   it("HOST-QUALIFIED KEY: a foreign successor is classified without a local lookup, including handed-off source rows", async () => {
     const row = await mkRow();
     const foreign = "qitem-xh-0123456789abcdef@vps-b";
-    repo.update({
+    writeLegacyHandoff({
       qitemId: row.qitemId,
       actorSession: "worker@r",
       state: "handed-off",
@@ -591,11 +597,11 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
   });
 
   it("FORGED HOST-QUALIFIED IS NOT TRUSTED: a generic close writing a registered-host-shaped target without the derived key stays verification-required", async () => {
-    // The generic update route accepts arbitrary closureTarget — a registered
+    // Historical generic updates accepted arbitrary closureTarget — a registered
     // host SUFFIX alone is syntax, not forward provenance. Only the id the
     // cross-host close derives from (source row, handed_off_to, host) counts.
     const row = await mkRow();
-    repo.update({
+    writeLegacyHandoff({
       qitemId: row.qitemId,
       actorSession: "worker@r",
       state: "handed-off",
@@ -612,7 +618,7 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
   it("DISPOSITION SURVIVES RETENTION: the custody-verified note still silences after the real archiver moves the terminal row's transitions", async () => {
     const row = await mkRow();
     const missing = "qitem-20990101000000-precon04";
-    repo.update({
+    writeLegacyHandoff({
       qitemId: row.qitemId,
       actorSession: "worker@r",
       state: "done",
@@ -642,7 +648,7 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
   it("UNREGISTERED HOST STAYS INDETERMINATE: an unknown host qualifier still earns a verification-required finding with honest wording", async () => {
     const row = await mkRow();
     const foreign = "qitem-xh-fedcba9876543210@vps-unknown";
-    repo.update({
+    writeLegacyHandoff({
       qitemId: row.qitemId,
       actorSession: "worker@r",
       state: "done",
@@ -660,7 +666,7 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
   it("CUSTODY-VERIFIED DISPOSITION: a durable custody-verified note on the closed row silences the bare-id local miss", async () => {
     const row = await mkRow();
     const missing = "qitem-20990101000000-precon01";
-    repo.update({
+    writeLegacyHandoff({
       qitemId: row.qitemId,
       actorSession: "worker@r",
       state: "done",
@@ -679,7 +685,7 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
   it("DISPOSITION CLOSES THE OPEN FINDING: verification landing after the finding minted auto-closes it on the next sweep, and the finding taught the recipe", async () => {
     const row = await mkRow();
     const missing = "qitem-20990101000000-precon02";
-    repo.update({
+    writeLegacyHandoff({
       qitemId: row.qitemId,
       actorSession: "worker@r",
       state: "done",
@@ -716,7 +722,7 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
     const row = await mkRow();
     const missing = "qitem-local-missing2";
     const verified = "qitem-local-verified1";
-    repo.update({
+    writeLegacyHandoff({
       qitemId: row.qitemId,
       actorSession: "worker@r",
       state: "done",
@@ -742,7 +748,7 @@ describe("S02 standing stuck sweep — both halves, routed findings, quiet-but-o
   it("DISPOSITION IS EXACT: a custody-verified note naming a DIFFERENT target silences nothing", async () => {
     const row = await mkRow();
     const missing = "qitem-20990101000000-precon03";
-    repo.update({
+    writeLegacyHandoff({
       qitemId: row.qitemId,
       actorSession: "worker@r",
       state: "done",
