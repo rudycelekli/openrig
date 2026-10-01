@@ -1195,7 +1195,9 @@ export async function waitForKernelReady(
   let last: KernelReadyResult = { ok: false, kernelState: null, variant: null, detail: null };
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${baseUrl}/api/kernel/status`);
+      const res = await fetch(`${baseUrl}/api/kernel/status`, {
+        signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+      });
       if (res.ok) {
         const body = (await res.json()) as {
           kernel_state?: string;
@@ -1223,7 +1225,9 @@ export async function waitForKernelReady(
     } catch {
       // Transient fetch failure; keep polling until the deadline.
     }
-    await new Promise((r) => setTimeout(r, pollIntervalMs));
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await new Promise((r) => setTimeout(r, Math.min(pollIntervalMs, remaining)));
   }
   return last;
 }
