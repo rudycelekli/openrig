@@ -183,6 +183,14 @@ export interface QueueItem {
   fieldsElided?: Array<"body" | "summary" | "evidenceRef" | "humanDetail" | "waiting">;
   closureReason: ClosureReason | null;
   closureTarget: string | null;
+  /** Reporting only: local absence never proves a foreign successor is missing.
+   * This is recomputed on reads, so a terminal successor is not ongoing custody. */
+  handoffAdvisory?: {
+    status: "unverified";
+    target: string;
+    reason: "no-live-local-successor" | "terminal-local-successor";
+    message: string;
+  };
   closureRequiredAt: string | null;
   claimedAt: string | null;
   lastNudgeAttempt: string | null;
@@ -2275,30 +2283,7 @@ export class QueueRepository {
    * view bridge.
    */
   update(input: QueueUpdateInput): QueueItem {
-    const txn = this.db.transaction(() => {
-      const source = this.getById(input.qitemId);
-      if (source && input.state && isTerminalState(input.state)
-        && input.state !== source.state && input.closureReason === "handed_off_to") {
-        const target = input.closureTarget ?? "";
-        const targetRow = this.getById(target);
-        const successor = this.db.prepare(
-          `SELECT 1 FROM queue_items s
-            WHERE ${targetRow ? "s.qitem_id" : "s.destination_session"} = ? AND s.qitem_id != ?
-              AND (s.handed_off_from = ? OR EXISTS (
-                SELECT 1 FROM json_each(s.chain_of_record) WHERE value = ?
-              )) LIMIT 1`,
-        ).get(target, source.qitemId, source.qitemId, source.qitemId);
-        if (!successor) {
-          throw new QueueRepositoryError(
-            "handoff_successor_required",
-            "Generic handed_off_to closure requires an existing successor with matching destination and source lineage. Use rig queue handoff or rig queue handoff-and-complete to create and transfer custody atomically (including cross-host handoffs). Nothing was written.",
-          );
-        }
-      }
-      // Atomic workflow/mission-control writers use updateWithinTransaction;
-      // their successor may be created after the close inside the same transaction.
-      return this.updateInTransactionalContext(input);
-    });
+    const txn = this.db.transaction(() => this.updateInTransactionalContext(input));
     const result = txn();
     for (const event of result.persistedEvents) this.eventBus.notifySubscribers(event);
     return this.getByIdOrThrow(input.qitemId);
@@ -3704,6 +3689,28 @@ export class QueueRepository {
     return view;
   }
 
+  private handoffAdvisory(row: QueueItemRow): QueueItem["handoffAdvisory"] {
+    if (!isTerminalState(row.state) || row.closure_reason !== "handed_off_to" || !row.closure_target) return undefined;
+    const target = row.closure_target;
+    const successors = this.db.prepare(
+      `SELECT state FROM queue_items s
+        WHERE (s.qitem_id = ? OR s.destination_session = ?) AND s.qitem_id != ?
+          AND (s.handed_off_from = ? OR EXISTS (
+            SELECT 1 FROM json_each(s.chain_of_record) WHERE value = ?
+          ))`,
+    ).all(target, target, row.qitem_id, row.qitem_id, row.qitem_id) as Array<{ state: string }>;
+    if (successors.some(s => isBlockerLive(s.state))) return undefined;
+    const terminal = successors.length > 0;
+    return {
+      status: "unverified",
+      target,
+      reason: terminal ? "terminal-local-successor" : "no-live-local-successor",
+      message: terminal
+        ? `Successor custody for '${target}' is unverified: linked local rows are terminal and no longer hold active work. This closure records a handoff claim, not proof of continuing custody.`
+        : `Successor custody for '${target}' is unverified on this daemon: no live local row with this source's lineage was found. A successor may exist on another host. This closure records a handoff claim, not proof of transfer or pickup; reconcile the successor by ID.`,
+    };
+  }
+
   private rowToItem(row: QueueItemRow, includeWaiting = true): QueueItem {
     // S04 — derive the pickup receipt at the ONE shared projection point (list/show/overdue
     // all flow through here), so the park-vs-strand question is answered by the row face.
@@ -3719,7 +3726,9 @@ export class QueueRepository {
       lastHeartbeat: row.last_heartbeat,
       postClaimMotionCount: 0, // this reader supplies the current meaningful timestamp
     });
+    const handoffAdvisory = this.handoffAdvisory(row);
     return {
+      ...(handoffAdvisory ? { handoffAdvisory } : {}),
       pickup,
       ...(waiting ? { waiting } : {}),
       qitemId: row.qitem_id,

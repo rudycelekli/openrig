@@ -120,7 +120,6 @@ export function queueRoutes(): Hono {
         : err.code === "missing_closure_reason" ? 400
         : err.code === "invalid_closure_reason" ? 400
         : err.code === "missing_closure_target" ? 400
-        : err.code === "handoff_successor_required" ? 400
         : err.code === "invalid_state" ? 400
         : err.code === "state_or_note_required" ? 400
         : err.code === "note_append_fields_not_admitted" ? 400
@@ -526,7 +525,8 @@ export function queueRoutes(): Hono {
   // OPR.0.3.2.21.FR-4(d-docs) — closure ≠ acceptance.
   //
   // `state=done` with `closure_reason=handed_off_to` records that the
-  // source seat has DELIVERED the work to the next stage. It does NOT
+  // source seat records a handoff claim. A row's handoffAdvisory names
+  // successor custody that this daemon cannot verify. The close does NOT
   // record that the next stage has ACCEPTED the work — that's the next
   // stage's verdict on its own qitem (typically a separate close with
   // its own closure_reason).

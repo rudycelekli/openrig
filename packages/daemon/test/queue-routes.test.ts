@@ -88,7 +88,7 @@ describe("queue routes", () => {
   }
 
   it.each(["missing", "unrelated", "wrong-owner", "remote-qualified"] as const)(
-    "refuses generic handoff without matching successor custody (%s) before writing", async (mode) => {
+    "records generic handoff with unverified custody advice (%s) without creating work", async (mode) => {
       const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "continue", nudge: false });
       queueRepo.claim({ qitemId: source.qitemId, destinationSession: "b@r" });
       const successor = mode === "missing" ? null : await queueRepo.create({
@@ -96,7 +96,6 @@ describe("queue routes", () => {
         body: "follow-on", nudge: false,
         chainOfRecord: mode === "unrelated" ? [] : [source.qitemId],
       });
-      const before = db.prepare("SELECT * FROM queue_items WHERE qitem_id = ?").get(source.qitemId);
       const transitions = queueRepo.listTransitions(source.qitemId);
       const events = bus.replayAll(0);
       const closureTarget = mode === "remote-qualified" ? `${successor!.qitemId}@remote` : "next@r";
@@ -105,11 +104,14 @@ describe("queue routes", () => {
         body: JSON.stringify({ state: "done", closureReason: "handed_off_to", closureTarget,
           transitionNote: "handoff" }),
       });
-      expect(res.status).toBe(400);
-      expect(await res.json()).toMatchObject({ error: "handoff_successor_required" });
-      expect(db.prepare("SELECT * FROM queue_items WHERE qitem_id = ?").get(source.qitemId)).toEqual(before);
-      expect(queueRepo.listTransitions(source.qitemId)).toEqual(transitions);
-      expect(bus.replayAll(0)).toEqual(events);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ state: "done", closureTarget,
+        handoffAdvisory: { status: "unverified", target: closureTarget } });
+      expect(queueRepo.getById(source.qitemId)).toMatchObject({ state: "done",
+        handoffAdvisory: { status: "unverified" } });
+      expect(queueRepo.list({ limit: 100 })).toHaveLength(successor ? 2 : 1);
+      expect(queueRepo.listTransitions(source.qitemId)).toHaveLength(transitions.length + 1);
+      expect(bus.replayAll(0).length).toBeGreaterThan(events.length);
     },
   );
 
@@ -125,6 +127,32 @@ describe("queue routes", () => {
     expect(res.status).toBe(200);
     expect(queueRepo.getById(source.qitemId)).toMatchObject({ state: "done", closureTarget: targetKind === "seat" ? "next@r" : successor.qitemId });
     expect(queueRepo.getById(successor.qitemId)).toMatchObject({ state: "pending", chainOfRecord: [source.qitemId] });
+  });
+
+  it("reports a terminal successor as no longer holding active work", async () => {
+    const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "continue", nudge: false });
+    const successor = await queueRepo.create({ sourceSession: "b@r", destinationSession: "next@r", body: "follow-on",
+      chainOfRecord: [source.qitemId], nudge: false });
+    queueRepo.update({ qitemId: source.qitemId, actorSession: "b@r", state: "done",
+      closureReason: "handed_off_to", closureTarget: successor.qitemId });
+    expect(queueRepo.getById(source.qitemId)?.handoffAdvisory).toBeUndefined();
+    queueRepo.update({ qitemId: successor.qitemId, actorSession: "next@r", state: "done", closureReason: "no-follow-on" });
+    expect(queueRepo.getById(source.qitemId)?.handoffAdvisory).toMatchObject({ status: "unverified", reason: "terminal-local-successor" });
+    expect(queueRepo.list({ limit: 100 })).toHaveLength(2);
+  });
+
+  it("keeps dependent row resolution unchanged when recording an unverified close", async () => {
+    const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "continue", nudge: false });
+    const dependent = await queueRepo.create({ sourceSession: "a@r", destinationSession: "held@r", body: "wait", nudge: false });
+    queueRepo.update({ qitemId: dependent.qitemId, actorSession: "held@r", state: "blocked", blockedOn: source.qitemId });
+    const res = await app.request(`/api/queue/${source.qitemId}/update`, {
+      method: "POST", headers: { "Content-Type": "application/json", "X-OpenRig-Session": "b@r" },
+      body: JSON.stringify({ state: "done", closureReason: "handed_off_to", closureTarget: "next@r" }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ handoffAdvisory: { status: "unverified" } });
+    expect(queueRepo.getById(dependent.qitemId)?.state).toBe("pending");
+    expect(queueRepo.list({ limit: 100 })).toHaveLength(2);
   });
 
   it("keeps legacy custody note appends and explicit reopen/repair available", async () => {
