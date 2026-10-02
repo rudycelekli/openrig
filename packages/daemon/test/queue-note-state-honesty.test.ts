@@ -47,10 +47,6 @@ describe("S8a — a note is not a state write", () => {
 
   async function createTerminal(state: "done" | "canceled" | "handed-off") {
     const item = await repo.create({ sourceSession: "author@rig", destinationSession: "owner@rig", body: "work" });
-    if (state === "handed-off") await repo.create({
-      sourceSession: "owner@rig", destinationSession: "review@rig", body: "continue",
-      chainOfRecord: [item.qitemId], nudge: false,
-    });
     repo.update({
       qitemId: item.qitemId,
       actorSession: "owner@rig",

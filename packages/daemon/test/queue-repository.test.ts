@@ -353,17 +353,12 @@ describe("QueueRepository", () => {
       });
       repo.claim({ qitemId: item.qitemId, destinationSession: "bob@rig" });
       const requiresTarget = reason === "handed_off_to" || reason === "blocked_on" || reason === "escalation";
-      const closureTarget = reason === "handed_off_to" ? "next@rig" : "downstream-target";
-      if (reason === "handed_off_to") await repo.create({
-        sourceSession: "bob@rig", destinationSession: closureTarget,
-        body: "continue the work", chainOfRecord: [item.qitemId], nudge: false,
-      });
       const closed = repo.update({
         qitemId: item.qitemId,
         actorSession: "bob@rig",
         state: "done",
         closureReason: reason,
-        closureTarget: requiresTarget ? closureTarget : undefined,
+        closureTarget: requiresTarget ? "downstream-target" : undefined,
       });
       expect(closed.state).toBe("done");
       expect(closed.closureReason).toBe(reason);

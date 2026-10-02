@@ -184,11 +184,11 @@ export interface QueueItem {
   closureReason: ClosureReason | null;
   closureTarget: string | null;
   /** Reporting only: local absence never proves a foreign successor is missing.
-   * This is recomputed on reads, so a terminal successor is not ongoing custody. */
+   * A matching local row suppresses it; this is not a continuing-custody check. */
   handoffAdvisory?: {
     status: "unverified";
     target: string;
-    reason: "no-live-local-successor" | "terminal-local-successor";
+    reason: "no-live-local-successor";
     message: string;
   };
   closureRequiredAt: string | null;
@@ -3690,24 +3690,29 @@ export class QueueRepository {
   }
 
   private handoffAdvisory(row: QueueItemRow): QueueItem["handoffAdvisory"] {
-    if (!isTerminalState(row.state) || row.closure_reason !== "handed_off_to" || !row.closure_target) return undefined;
+    // handoff() creates its local successor in the same transaction. Do not
+    // scan successor history again on every projection of those source rows.
+    if (row.state === "handed-off" || !isTerminalState(row.state)
+      || row.closure_reason !== "handed_off_to" || !row.closure_target) return undefined;
     const target = row.closure_target;
-    const successors = this.db.prepare(
-      `SELECT state FROM queue_items s
+    const successor = this.db.prepare(
+      `SELECT 1 FROM queue_items s
         WHERE (s.qitem_id = ? OR s.destination_session = ?) AND s.qitem_id != ?
           AND (s.handed_off_from = ? OR EXISTS (
             SELECT 1 FROM json_each(s.chain_of_record) WHERE value = ?
-          ))`,
-    ).all(target, target, row.qitem_id, row.qitem_id, row.qitem_id) as Array<{ state: string }>;
-    if (successors.some(s => isBlockerLive(s.state))) return undefined;
-    const terminal = successors.length > 0 && successors.every(s => isTerminalState(s.state));
+          )) LIMIT 1`,
+    ).get(target, target, row.qitem_id, row.qitem_id, row.qitem_id);
+    // A linked row may have handed on to another owner. Its current state
+    // does not establish whether later hops still hold the work.
+    if (successor) return undefined;
+    const foreignTarget = /^qitem-[^@]+@[^@]+$/.test(target);
     return {
       status: "unverified",
       target,
-      reason: terminal ? "terminal-local-successor" : "no-live-local-successor",
-      message: terminal
-        ? `Successor custody for '${target}' is unverified: linked local rows are terminal and no longer hold active work. This closure records a handoff claim, not proof of continuing custody.`
-        : `Successor custody for '${target}' is unverified on this daemon: no live local row with this source's lineage was found. A successor may exist on another host. This closure records a handoff claim, not proof of transfer or pickup; reconcile the successor by ID.`,
+      reason: "no-live-local-successor",
+      message: foreignTarget
+        ? `Successor custody for '${target}' is unverified on this daemon: the successor is named on that host, and this daemon cannot read its custody. This closure records a handoff claim, not proof of transfer or pickup.`
+        : `Successor custody for '${target}' is unverified on this daemon: no local row with this source's lineage was found. A successor may exist on another host. This closure records a handoff claim, not proof of transfer or pickup; reconcile the successor by ID.`,
     };
   }
 

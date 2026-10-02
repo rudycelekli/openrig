@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Hono } from "hono";
 import type Database from "better-sqlite3";
 import { createDb } from "../src/db/connection.js";
@@ -129,20 +129,20 @@ describe("queue routes", () => {
     expect(queueRepo.getById(successor.qitemId)).toMatchObject({ state: "pending", chainOfRecord: [source.qitemId] });
   });
 
-  it("reports a terminal successor as no longer holding active work", async () => {
+  it("does not infer lost custody when a linked successor has handed on to a third owner", async () => {
     const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "continue", nudge: false });
     const successor = await queueRepo.create({ sourceSession: "b@r", destinationSession: "next@r", body: "follow-on",
       chainOfRecord: [source.qitemId], nudge: false });
     queueRepo.update({ qitemId: source.qitemId, actorSession: "b@r", state: "done",
       closureReason: "handed_off_to", closureTarget: successor.qitemId });
+    const nextHop = await queueRepo.handoff({ qitemId: successor.qitemId, fromSession: "next@r", toSession: "third@r", nudge: false });
+    expect(nextHop.created.state).toBe("pending");
     expect(queueRepo.getById(source.qitemId)?.handoffAdvisory).toBeUndefined();
-    queueRepo.update({ qitemId: successor.qitemId, actorSession: "next@r", state: "done", closureReason: "no-follow-on" });
-    expect(queueRepo.getById(source.qitemId)?.handoffAdvisory).toMatchObject({ status: "unverified", reason: "terminal-local-successor" });
-    expect(queueRepo.list({ limit: 100 })).toHaveLength(2);
+    expect(queueRepo.list({ limit: 100 })).toHaveLength(3);
   });
 
-  it.each([{ states: ["failed"] }, { states: ["denied"] }, { states: ["done", "failed"] }] as const)(
-    "does not label non-active non-terminal successor states $states as terminal", async ({ states }) => {
+  it.each([{ states: ["failed"] }, { states: ["denied"] }, { states: ["canceled"] }, { states: ["done"] }, { states: ["done", "failed"] }] as const)(
+    "does not infer custody from linked local successor states $states", async ({ states }) => {
       const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "continue", nudge: false });
       for (const state of states) {
         const successor = await queueRepo.create({ sourceSession: "b@r", destinationSession: "next@r", body: "follow-on",
@@ -156,11 +156,30 @@ describe("queue routes", () => {
         body: JSON.stringify({ state: "done", closureReason: "handed_off_to", closureTarget: "next@r" }),
       });
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ handoffAdvisory: { status: "unverified", reason: "no-live-local-successor" } });
-      expect(queueRepo.getById(source.qitemId)?.handoffAdvisory?.reason).toBe("no-live-local-successor");
+      expect((await res.json()).handoffAdvisory).toBeUndefined();
+      expect(queueRepo.getById(source.qitemId)?.handoffAdvisory).toBeUndefined();
       expect(queueRepo.list({ limit: 100 })).toHaveLength(count);
     },
   );
+
+  it("skips successor-history lookups for transactionally handed-off rows on show, list and note updates", async () => {
+    const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "continue", nudge: false });
+    const handoff = await queueRepo.handoff({ qitemId: source.qitemId, fromSession: "b@r", toSession: "next@r", nudge: false });
+    const prepare = vi.spyOn(db, "prepare"); // Forward actual SQL; only observe the lookup boundary.
+    try {
+      expect(queueRepo.getById(source.qitemId)?.state).toBe("handed-off");
+      queueRepo.list({ limit: 100 });
+      const res = await app.request(`/api/queue/${source.qitemId}/update`, {
+        method: "POST", headers: { "Content-Type": "application/json", "X-OpenRig-Session": "b@r" },
+        body: JSON.stringify({ transitionNote: "receipt appended" }),
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()).handoffAdvisory).toBeUndefined();
+      expect(prepare.mock.calls.filter(([sql]) => sql.includes("FROM queue_items s") && sql.includes("json_each"))).toEqual([]);
+      expect(queueRepo.getById(handoff.created.qitemId)?.state).toBe("pending");
+      expect(queueRepo.list({ limit: 100 })).toHaveLength(2);
+    } finally { prepare.mockRestore(); }
+  });
 
   it("keeps dependent row resolution unchanged when recording an unverified close", async () => {
     const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "continue", nudge: false });
@@ -178,9 +197,8 @@ describe("queue routes", () => {
 
   it("keeps legacy custody note appends and explicit reopen/repair available", async () => {
     const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "legacy", nudge: false });
-    // Pre-guard facts can exist on disk; this fixture uses the existing transaction writer.
-    db.transaction(() => queueRepo.updateWithinTransaction({ qitemId: source.qitemId, actorSession: "b@r",
-      state: "done", closureReason: "handed_off_to", closureTarget: "qitem-old@remote" }))();
+    queueRepo.update({ qitemId: source.qitemId, actorSession: "b@r",
+      state: "done", closureReason: "handed_off_to", closureTarget: "qitem-old@remote" });
     const post = (body: Record<string, unknown>) => app.request(`/api/queue/${source.qitemId}/update`, {
       method: "POST", headers: { "Content-Type": "application/json", "X-OpenRig-Session": "b@r" }, body: JSON.stringify(body),
     });
