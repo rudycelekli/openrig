@@ -141,6 +141,27 @@ describe("queue routes", () => {
     expect(queueRepo.list({ limit: 100 })).toHaveLength(2);
   });
 
+  it.each([{ states: ["failed"] }, { states: ["denied"] }, { states: ["done", "failed"] }] as const)(
+    "does not label non-active non-terminal successor states $states as terminal", async ({ states }) => {
+      const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "continue", nudge: false });
+      for (const state of states) {
+        const successor = await queueRepo.create({ sourceSession: "b@r", destinationSession: "next@r", body: "follow-on",
+          chainOfRecord: [source.qitemId], nudge: false });
+        queueRepo.update({ qitemId: successor.qitemId, actorSession: "next@r", state,
+          ...(state === "done" ? { closureReason: "no-follow-on" } : {}) });
+      }
+      const count = queueRepo.list({ limit: 100 }).length;
+      const res = await app.request(`/api/queue/${source.qitemId}/update`, {
+        method: "POST", headers: { "Content-Type": "application/json", "X-OpenRig-Session": "b@r" },
+        body: JSON.stringify({ state: "done", closureReason: "handed_off_to", closureTarget: "next@r" }),
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ handoffAdvisory: { status: "unverified", reason: "no-live-local-successor" } });
+      expect(queueRepo.getById(source.qitemId)?.handoffAdvisory?.reason).toBe("no-live-local-successor");
+      expect(queueRepo.list({ limit: 100 })).toHaveLength(count);
+    },
+  );
+
   it("keeps dependent row resolution unchanged when recording an unverified close", async () => {
     const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "continue", nudge: false });
     const dependent = await queueRepo.create({ sourceSession: "a@r", destinationSession: "held@r", body: "wait", nudge: false });

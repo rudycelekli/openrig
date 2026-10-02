@@ -3700,7 +3700,7 @@ export class QueueRepository {
           ))`,
     ).all(target, target, row.qitem_id, row.qitem_id, row.qitem_id) as Array<{ state: string }>;
     if (successors.some(s => isBlockerLive(s.state))) return undefined;
-    const terminal = successors.length > 0;
+    const terminal = successors.length > 0 && successors.every(s => isTerminalState(s.state));
     return {
       status: "unverified",
       target,
