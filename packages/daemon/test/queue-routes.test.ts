@@ -162,6 +162,31 @@ describe("queue routes", () => {
     },
   );
 
+  it("keeps a saved generic close successful when the optional custody lookup is unavailable", async () => {
+    const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "continue", nudge: false });
+    const nativePrepare = db.prepare.bind(db);
+    const prepare = vi.spyOn(db, "prepare").mockImplementation((sql) => {
+      if (sql.includes("FROM queue_items s") && sql.includes("json_each")) {
+        throw Object.assign(new Error("optional custody lookup unavailable"), { code: "SQLITE_BUSY" });
+      }
+      return nativePrepare(sql);
+    });
+    try {
+      const res = await app.request(`/api/queue/${source.qitemId}/update`, {
+        method: "POST", headers: { "Content-Type": "application/json", "X-OpenRig-Session": "b@r" },
+        body: JSON.stringify({ state: "done", closureReason: "handed_off_to", closureTarget: "next@r" }),
+      });
+      expect(res.status).toBe(200);
+      const row = await res.json();
+      expect(row.state).toBe("done");
+      expect(row.handoffAdvisory).toBeUndefined();
+      expect(nativePrepare("SELECT state, closure_reason, closure_target FROM queue_items WHERE qitem_id = ?").get(source.qitemId))
+        .toEqual({ state: "done", closure_reason: "handed_off_to", closure_target: "next@r" });
+      expect(nativePrepare("SELECT COUNT(*) AS n FROM queue_items").get()).toEqual({ n: 1 });
+    } finally { prepare.mockRestore(); }
+    expect(queueRepo.getById(source.qitemId)?.handoffAdvisory?.status).toBe("unverified");
+  });
+
   it("skips successor-history lookups for transactionally handed-off rows on show, list and note updates", async () => {
     const source = await queueRepo.create({ sourceSession: "a@r", destinationSession: "b@r", body: "continue", nudge: false });
     const handoff = await queueRepo.handoff({ qitemId: source.qitemId, fromSession: "b@r", toSession: "next@r", nudge: false });

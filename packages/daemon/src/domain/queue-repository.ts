@@ -3695,16 +3695,22 @@ export class QueueRepository {
     if (row.state === "handed-off" || !isTerminalState(row.state)
       || row.closure_reason !== "handed_off_to" || !row.closure_target) return undefined;
     const target = row.closure_target;
-    const successor = this.db.prepare(
-      `SELECT 1 FROM queue_items s
-        WHERE (s.qitem_id = ? OR s.destination_session = ?) AND s.qitem_id != ?
-          AND (s.handed_off_from = ? OR EXISTS (
-            SELECT 1 FROM json_each(s.chain_of_record) WHERE value = ?
-          )) LIMIT 1`,
-    ).get(target, target, row.qitem_id, row.qitem_id, row.qitem_id);
-    // A linked row may have handed on to another owner. Its current state
-    // does not establish whether later hops still hold the work.
-    if (successor) return undefined;
+    try {
+      const successor = this.db.prepare(
+        `SELECT 1 FROM queue_items s
+          WHERE (s.qitem_id = ? OR s.destination_session = ?) AND s.qitem_id != ?
+            AND (s.handed_off_from = ? OR EXISTS (
+              SELECT 1 FROM json_each(s.chain_of_record) WHERE value = ?
+            )) LIMIT 1`,
+      ).get(target, target, row.qitem_id, row.qitem_id, row.qitem_id);
+      // A linked row may have handed on to another owner. Its current state
+      // does not establish whether later hops still hold the work.
+      if (successor) return undefined;
+    } catch {
+      // Optional reporting must not fail a close that has already committed,
+      // or describe an unavailable lookup as proof of a missing local row.
+      return undefined;
+    }
     const foreignTarget = /^qitem-[^@]+@[^@]+$/.test(target);
     return {
       status: "unverified",
