@@ -1,5 +1,6 @@
 import type { Hono } from "hono";
 import type { TmuxAdapter } from "../adapters/tmux.js";
+import { hostnameFromHostHeader } from "../middleware/origin-guard.js";
 import { constantTimeEqual } from "../middleware/auth-bearer-token.js";
 import {
   TerminalBrokerRegistry,
@@ -21,7 +22,7 @@ export function terminalAuthMiddleware(opts: { bearerToken: string | null }) {
         try {
           const originUrl = new URL(origin);
           const originHost = originUrl.hostname.toLowerCase();
-          const requestHost = c.req.header("Host")?.split(":")[0]?.toLowerCase() ?? "";
+          const requestHost = hostnameFromHostHeader(c.req.header("Host"));
           const isLoopbackIpv4 = /^127(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}$/.test(originHost);
           const isLocal =
             originHost === "localhost" ||

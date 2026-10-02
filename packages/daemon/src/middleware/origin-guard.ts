@@ -1,5 +1,17 @@
 import type { MiddlewareHandler } from "hono";
 
+/** Parse a Host authority without splitting the colons inside bracketed IPv6. */
+export function hostnameFromHostHeader(host: string | undefined): string {
+  if (!host) return "";
+  try {
+    const url = new URL(`http://${host}`);
+    if (url.username || url.password || url.pathname !== "/" || url.search || url.hash) return "";
+    return url.hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
 export interface OriginGuardOptions {
   allowedOrigins?: string[];
 }
@@ -40,9 +52,7 @@ export function apiOriginProtection(options?: OriginGuardOptions): MiddlewareHan
     }
 
     const originHost = originUrl.hostname.toLowerCase();
-    const rawHostHeader = c.req.header("Host");
-    // Strip port if present
-    const requestHost = rawHostHeader ? rawHostHeader.split(":")[0]?.toLowerCase() : "";
+    const requestHost = hostnameFromHostHeader(c.req.header("Host"));
 
     const configuredAllowed = [
       ...(options?.allowedOrigins ?? []),
