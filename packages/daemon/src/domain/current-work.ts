@@ -42,6 +42,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parseFrontmatter } from "./slices/slice-indexer.js";
+import { resolveNodeFile } from "./scope/node-file.js";
 
 const MISSION_TAG = "mission:";
 const SLICE_TAG = "slice:";
@@ -127,7 +128,7 @@ function tagValues(tags: string[], prefix: string): string[] {
 
 /**
  * Directories directly under `root` addressed by `wanted` — either because the directory
- * is named that, or because its SPEC.md frontmatter `id` is that. A directory can only
+ * is named that, or because its authored node-file frontmatter `id` is that. A directory can only
  * match once, so a name hit short-circuits its own frontmatter read.
  */
 export function resolveWorkNodeDirs(root: string, wanted: string): Match[] {
@@ -145,7 +146,9 @@ export function resolveWorkNodeDirs(root: string, wanted: string): Match[] {
     }
     let raw: string;
     try {
-      raw = fs.readFileSync(path.join(root, dir, "SPEC.md"), "utf8");
+      const nodeFile = resolveNodeFile(path.join(root, dir));
+      if (!nodeFile) continue;
+      raw = fs.readFileSync(nodeFile, "utf8");
     } catch {
       continue;
     }

@@ -293,6 +293,30 @@ describe("execution view — S27 (OPR.0.5.6.27)", () => {
     expect(doc.q1_lanes).toHaveLength(2);
   });
 
+  it.each(["?mission=OPR.9.9", ""])("resolves authored README mission IDs through the execution route (%s)", async (query) => {
+    const missionDir = path.join(missionsRoot, MISSION);
+    fs.renameSync(path.join(missionDir, "SPEC.md"), path.join(missionDir, "README.md"));
+    db.prepare("UPDATE queue_items SET tags = replace(tags, ?, ?), body = replace(body, ?, ?)")
+      .run(MISSION, "OPR.9.9", MISSION, "OPR.9.9");
+    // Prevent the no-query case from accidentally passing via release sorting.
+    fs.mkdirSync(path.join(missionsRoot, "release-10.0", "slices"), { recursive: true });
+    const app = new Hono();
+    app.use("*", async (c, next) => {
+      c.set("viewProjector" as never, projector);
+      c.set("eventBus" as never, new EventBus(db));
+      await next();
+    });
+    app.route("/api/views", viewsRoutes());
+    const res = await app.request(`/api/views/execution${query}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    const doc = (body.rows as Record<string, unknown>[])[0]!;
+    expect(doc.mission).toBe(MISSION);
+    expect((doc.q4_ladder as Record<string, unknown>[]).map(slice => slice.slice_id))
+      .toEqual(["OPR.9.9.31", "OPR.9.9.32", "OPR.9.9.33"]);
+    expect(doc.q1_lanes).toHaveLength(2);
+  });
+
   it("prefers current SPEC files when a legacy README is also present", () => {
     const missionDir = path.join(missionsRoot, MISSION);
     fs.writeFileSync(path.join(missionDir, "README.md"), "---\nid: OTHER.1\n---\nLegacy mission\n");

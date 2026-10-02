@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deriveCurrentWork } from "../src/domain/current-work.js";
@@ -68,6 +68,25 @@ describe("deriveCurrentWork — tag form tolerance (OPR.0.5.8.14)", () => {
     expect(result.currentWork?.workNodePath).toBe(
       join(missions, "release-0.5.8", "slices", "14-refocus-current-work-binding"),
     );
+  });
+
+  it("resolves legacy authored IDs in README-only missions and slices", () => {
+    const missions = tree();
+    renameSync(join(missions, "release-0.5.8", "SPEC.md"), join(missions, "release-0.5.8", "README.md"));
+    const sliceDir = join(missions, "release-0.5.8", "slices", "14-refocus-current-work-binding");
+    renameSync(join(sliceDir, "SPEC.md"), join(sliceDir, "README.md"));
+    const result = deriveCurrentWork([row("OPR.0.5.8", "OPR.0.5.8.14")], missions);
+    expect(result.currentWork?.workNodePath).toBe(sliceDir);
+  });
+
+  it("keeps SPEC identity ahead of a legacy README identity", () => {
+    const missions = tree();
+    writeFileSync(join(missions, "release-0.5.8", "README.md"), "---\nid: OTHER.1\n---\nLegacy mission\n");
+    const result = deriveCurrentWork([row("OTHER.1", "OPR.0.5.8.14")], missions);
+    expect(result.currentWork).toBeNull();
+    expect(result.currentWorkBasis).toContain("resolves to 0 directories");
+    expect(deriveCurrentWork([row("OPR.0.5.8", "OPR.0.5.8.14")], missions).currentWork)
+      .not.toBeNull();
   });
 
   it("resolves a slice tagged by its DIRECTORY name", () => {
