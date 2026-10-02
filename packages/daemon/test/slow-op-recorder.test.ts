@@ -135,7 +135,22 @@ describe("SlowOpRecorder locked instrumentation contract", () => {
       slowOpRecorder: degraded,
     } as never);
     try {
-      expect(degraded.runSync("test.sync.degraded", () => "continued")).toBe("continued");
+      // Zero timeout alone can succeed if the real worker acknowledges before
+      // Atomics.wait runs. Withhold only that acknowledgement deterministically;
+      // the actual worker still appends the begin record and flushes it below.
+      const worker = (degraded as any).worker;
+      const postMessage = worker.postMessage.bind(worker);
+      worker.postMessage = (message: Record<string, unknown>) => {
+        const { signal, ...withoutSignal } = message;
+        postMessage(signal ? withoutSignal : message);
+      };
+      try {
+        expect(degraded.runSync("test.sync.degraded", () => "continued")).toBe("continued");
+      } finally { worker.postMessage = postMessage; }
+      await degraded.flush();
+      const timedOutRecords = (await readRecords(path.join(dir, "degraded.jsonl")))
+        .filter(record => record.site === "test.sync.degraded");
+      expect(timedOutRecords.map(record => record.phase)).toEqual(["begin", "end"]);
       expect(degraded.snapshot()).toMatchObject({
         healthy: false,
         reason: "begin_barrier_timeout",
