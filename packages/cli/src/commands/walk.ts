@@ -41,7 +41,10 @@ export function parsePaceMs(value: string | undefined): number | null {
   if (!m) return null;
   const n = Number(m[1]);
   if (!Number.isFinite(n) || n < 0) return null;
-  return m[2] === "ms" ? Math.round(n) : Math.round(n * 1000);
+  const ms = m[2] === "ms" ? Math.round(n) : Math.round(n * 1000);
+  // Node clamps overflowing timers to 1 ms, which would erase pacing or a
+  // verification window instead of honoring the operator's requested delay.
+  return Number.isSafeInteger(ms) && ms <= 2_147_483_647 ? ms : null;
 }
 
 export interface WalkPiece {

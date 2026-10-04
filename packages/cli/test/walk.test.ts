@@ -80,6 +80,10 @@ describe("parsePaceMs", () => {
     expect(parsePaceMs("2")).toBeNull();
     expect(parsePaceMs("bogus")).toBeNull();
     expect(parsePaceMs("-1")).toBeNull();
+    expect(parsePaceMs("2147483647ms")).toBe(2147483647);
+    expect(parsePaceMs("2147483648ms")).toBeNull();
+    expect(parsePaceMs("2147484s")).toBeNull();
+    expect(parsePaceMs("9".repeat(308) + "s")).toBeNull();
   });
 });
 
