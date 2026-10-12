@@ -1,0 +1,81 @@
+name: Qualify Markdown container digest
+on:
+  push:
+    branches: [codex/qualify-markdown-container-digest]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: markdown-container-digest-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate pinned tree and regenerate native digest
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import crypto from 'node:crypto';
+          import { execFileSync } from 'node:child_process';
+          const base = '3001cc436656c435e54425443e708e3e2d8c7d68';
+          const workflow = '.github/workflows/qualify-markdown-container-digest.yml';
+          const generated = 'scripts/skill-edge-digests.generated.json';
+          const expected = {"packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs":{"sha256":"ab9a86b2ad041e58a9384cc3b84aad5d3e86b73ae8c721bf76fbfa545712883c","mode":"100755"},"packages/daemon/src/domain/markdown-address.ts":{"sha256":"e02c4b56bb466eae11a2ce541c55041b234e4a06010bf0dec3c0756c4d3c3a0c","mode":"100644"},"packages/daemon/test/markdown-address-container-boundary.test.ts":{"sha256":"67af3982badbab599a258e9df3fd504937eb8a04a07251794e662ff9b1fbe60c","mode":"100644"},"packages/daemon/test/markdown-address-container-fence.test.ts":{"sha256":"e76f3697536fb35ae5087bc4b4051294f4225f76a6ab962455ccb13a8e89df47","mode":"100644"},"packages/daemon/test/markdown-address-tab-fence.test.ts":{"sha256":"cbeaad8a49a88fd92825ef14fd4f70fa5233bfd8aeaf68c5c5db56d04b02d5e2","mode":"100644"}};
+          const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+          const git = (...args) => execFileSync('git', args, { encoding:'utf8', timeout:15000, maxBuffer:4*1024*1024 });
+          if (git('rev-parse','HEAD').trim() !== process.env.GITHUB_SHA) throw new Error('Producer head mismatch');
+          if (git('rev-parse',`${base}^{commit}`).trim() !== base) throw new Error('Missing exact base');
+          git('merge-base','--is-ancestor',base,'HEAD');
+          const paths = git('diff','--name-only',base,'HEAD').trim().split('\n').sort();
+          const allowed = [...Object.keys(expected), workflow].sort();
+          if (JSON.stringify(paths) !== JSON.stringify(allowed)) throw new Error('Unexpected committed diff: '+JSON.stringify(paths));
+          if (git('status','--porcelain').trim()) throw new Error('Unclean checkout before generator');
+          for (const [file,binding] of Object.entries(expected)) {
+           if (hash(fs.readFileSync(file)) !== binding.sha256) throw new Error('Reviewed bytes drift: '+file);
+           const entry=git('ls-tree','HEAD','--',file).trim().split(/\s+/);
+           if (entry[0] !== binding.mode) throw new Error('Reviewed mode drift: '+file);
+          }
+          const protectedPaths = ['.github/workflows/tests.yml','package-lock.json','package.json','scripts/regen-edge-digests.mjs','packages/daemon/scripts/gen-control-plane-json.mjs','scripts/skill-edge-layout.generated.json'];
+          const protectedBindings = {};
+          for (const file of protectedPaths) {
+           const original = execFileSync('git',['show',`${base}:${file}`],{timeout:15000,maxBuffer:4*1024*1024});
+           const current=fs.readFileSync(file);
+           if (!original.equals(current)) throw new Error('Protected original changed: '+file);
+           protectedBindings[file]=hash(current);
+          }
+          execFileSync('./packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs',['--help'],{timeout:10000,maxBuffer:65536});
+          const before = fs.readFileSync(generated);
+          const stdout = execFileSync('node',['scripts/regen-edge-digests.mjs'],{encoding:'utf8',timeout:30000,maxBuffer:512*1024});
+          const after = fs.readFileSync(generated);
+          if (after.length>4*1024*1024 || before.equals(after)) throw new Error('Digest missing, oversized or unchanged');
+          const uncommitted = git('diff','--name-only').trim().split('\n');
+          if (JSON.stringify(uncommitted) !== JSON.stringify([generated])) throw new Error('Generator changed unexpected files');
+          const finalPaths=git('diff','--name-only',base).trim().split('\n').filter(p=>p!==workflow).sort();
+          if (JSON.stringify(finalPaths)!==JSON.stringify([...Object.keys(expected),generated].sort())) throw new Error('Final six-file diff drift');
+          for (const [file,binding] of Object.entries(expected)) if(hash(fs.readFileSync(file))!==binding.sha256)throw new Error('Generator changed source');
+          const patch = git('diff','--binary',base,'--',...Object.keys(expected),generated);
+          if(Buffer.byteLength(patch)>1024*1024)throw new Error('Patch too large');
+          const receipt = {status:'complete-pinned-tree-digest-generated',base,head:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,runAttempt:process.env.GITHUB_RUN_ATTEMPT,workflowRef:process.env.GITHUB_WORKFLOW_REF,repository:process.env.GITHUB_REPOSITORY,node:process.version,command:['node','scripts/regen-edge-digests.mjs'],expected,protectedBindings,generated:{path:generated,mode:'100644',sha256:hash(after),bytes:after.length,beforeSha256:hash(before)},patchSha256:hash(Buffer.from(patch)),candidatePaths:finalPaths,trackedFiles:Number(git('ls-files','-z').split('\0').filter(Boolean).length),scope:'Digest generation only; no native suite qualification or maintainer acceptance'};
+          fs.mkdirSync('revision-digest-evidence',{recursive:false});
+          fs.writeFileSync('revision-digest-evidence/skill-edge-digests.generated.json',after);
+          fs.writeFileSync('revision-digest-evidence/complete-six-file.patch',patch);
+          fs.writeFileSync('revision-digest-evidence/generator.stdout.log',stdout);
+          fs.writeFileSync('revision-digest-evidence/receipt.json',JSON.stringify(receipt,null,2)+'\n');
+          console.log(JSON.stringify({status:receipt.status,base,head:receipt.head,generatedSha256:receipt.generated.sha256,candidatePaths:finalPaths}));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: markdown-container-digest-${{ github.sha }}-${{ github.run_attempt }}
+          path: revision-digest-evidence/
+          if-no-files-found: error
+          retention-days: 14
