@@ -103,24 +103,55 @@ interface HeaderScan {
   unterminatedFenceLine: number | null;
 }
 
+/** Count list-continuation indentation in columns; tabs advance to four-column stops. */
+function indentationColumns(whitespace: string): number {
+  let columns = 0;
+  for (const character of whitespace) columns += character === "\t" ? 4 - columns % 4 : 1;
+  return columns;
+}
+
 /** Scan for real headers, skipping fenced code blocks (``` or ~~~, any info string;
  *  a fence closes only on the same marker at the same or greater length). */
 function scanHeaders(lines: string[]): HeaderScan {
   const hits: HeaderHit[] = [];
-  let fence: { marker: string; length: number; line: number } | null = null;
+  let fence: { marker: string; length: number; line: number; containerIndent: number } | null = null;
+  const listIndents: number[] = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
-    const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    // A leading lone CR is a line boundary, not fence indentation. Keep raw
+    // lines for headings and returned spans, as this scanner has always done.
+    const fenceLine = line.replace(/^\r+/, "");
+    const prefix = fenceLine.match(/^[ \t]*/)![0];
+    const columns = indentationColumns(prefix);
+    if (!fence && fenceLine.trim()) {
+      while (listIndents.length && columns < listIndents[listIndents.length - 1]!) listIndents.pop();
+      const parentIndent = listIndents[listIndents.length - 1] ?? 0;
+      const item = fenceLine.slice(prefix.length).match(/^([-+*]|\d{1,9}[.)])([ \t]+|$)/);
+      // A thematic break wins over a list marker (for example, "- - -").
+      const thematicBreak = /^([-*_])(?:[ \t]*\1){2,}[ \t\r]*$/.test(fenceLine.slice(prefix.length));
+      if (item && !thematicBreak && columns - parentIndent <= 3) {
+        const markerEnd = columns + item[1]!.length;
+        const contentIndent = indentationColumns(prefix + item[1] + item[2]);
+        const padding = contentIndent - markerEnd;
+        listIndents.push(markerEnd + (padding >= 1 && padding <= 4 ? padding : 1));
+      }
+    }
+    // Strip only an established item's continuation prefix. At the top level,
+    // a tab still occupies four columns and cannot introduce a code fence.
+    const containerIndent = fence?.containerIndent ?? listIndents[listIndents.length - 1] ?? 0;
+    const fenceCandidate = containerIndent > 0 && columns >= containerIndent && columns - containerIndent <= 3
+      ? fenceLine.slice(prefix.length) : fenceLine;
+    const fenceMatch = fenceCandidate.match(/^ {0,3}(`{3,}|~{3,})/);
     if (fenceMatch) {
       const marker = fenceMatch[1]![0]!;
       const length = fenceMatch[1]!.length;
       if (!fence) {
         // Backticks in an opener's info string prevent a fenced block.
         // Do not let inline code spans hide the following real headings.
-        if (marker === "`" && line.slice(fenceMatch[0].length).includes("`")) continue;
-        fence = { marker, length, line: i };
+        if (marker === "`" && fenceCandidate.slice(fenceMatch[0].length).includes("`")) continue;
+        fence = { marker, length, line: i, containerIndent };
       } else if (fence.marker === marker && length >= fence.length
-        && /^[ \t\r]*$/.test(line.slice(fenceMatch[0].length))) {
+        && /^[ \t\r]*$/.test(fenceCandidate.slice(fenceMatch[0].length))) {
         fence = null;
       }
       continue;
