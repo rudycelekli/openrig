@@ -138,7 +138,7 @@ function scanHeaders(lines: string[]): HeaderScan {
     }
     // Strip only an established item's continuation prefix. At the top level,
     // a tab still occupies four columns and cannot introduce a code fence.
-    const containerIndent = fence?.containerIndent ?? listIndents[listIndents.length - 1] ?? 0;
+    const containerIndent: number = fence?.containerIndent ?? listIndents[listIndents.length - 1] ?? 0;
     const fenceCandidate = containerIndent > 0 && columns >= containerIndent && columns - containerIndent <= 3
       ? fenceLine.slice(prefix.length) : fenceLine;
     const fenceMatch = fenceCandidate.match(/^ {0,3}(`{3,}|~{3,})/);
