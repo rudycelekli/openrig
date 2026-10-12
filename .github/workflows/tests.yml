@@ -25,6 +25,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 751265e1545db80177502590fbb40f52510839f6
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "751265e1545db80177502590fbb40f52510839f6"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -53,6 +59,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 751265e1545db80177502590fbb40f52510839f6
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "751265e1545db80177502590fbb40f52510839f6"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -67,6 +79,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 751265e1545db80177502590fbb40f52510839f6
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "751265e1545db80177502590fbb40f52510839f6"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -88,6 +106,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: 751265e1545db80177502590fbb40f52510839f6
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "751265e1545db80177502590fbb40f52510839f6"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -124,6 +148,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 751265e1545db80177502590fbb40f52510839f6
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "751265e1545db80177502590fbb40f52510839f6"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -137,3 +167,75 @@ jobs:
           name: installed-scenario-evidence
           path: dist/pr-scenarios/
           if-no-files-found: error
+
+  registration-proof:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: 751265e1545db80177502590fbb40f52510839f6
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "751265e1545db80177502590fbb40f52510839f6"
+          git diff --exit-code
+          git diff --cached --exit-code
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: brew install tmux
+      - run: npm ci
+      - name: Prove three owner regressions on frozen previous production
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p registration-proof
+          git rev-parse HEAD > registration-proof/validation-head.txt
+          for file in packages/cli/src/commands/scope.ts packages/cli/src/lib/scope/scope-fs.ts packages/cli/src/lib/scope/mission-composition.ts; do
+            git show d266cb2f0fcc23f9ff7fb052b38cda7e308d0629:$file > "$file"
+          done
+          npm run build
+          set +e
+          (cd packages/cli && npx vitest run test/scope-slice-claims.test.ts -t 'verified and repaired|older complete|partial final' --reporter=junit --outputFile=../../registration-proof/before.xml) > registration-proof/before.log 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 1
+          python3 - <<'PYPROOF'
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('registration-proof/before.xml')
+          expected = ['verified and repaired registrations stay removed', 'older complete unlisted folders', 'a partial final PROOF write cannot be adopted']
+          failures = [(c.attrib['name'], c.find('failure')) for c in tree.iter('testcase') if c.find('failure') is not None]
+          assert len(failures) == 3, [(n, f.attrib) for n, f in failures]
+          for prefix in expected:
+              matches = [f for n, f in failures if prefix in n]
+              assert len(matches) == 1, prefix
+              text = ''.join(matches[0].itertext())
+              assert 'AssertionError' in text and ('deeply equal' in text or 'to not include' in text or 'to not contain' in text), text
+          PYPROOF
+      - name: Restore exact candidate and prove native focused controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD -- packages/cli/src/commands/scope.ts packages/cli/src/lib/scope/scope-fs.ts packages/cli/src/lib/scope/mission-composition.ts
+          git diff --exit-code
+          git diff --cached --exit-code
+          npm run build
+          (cd packages/cli && npx vitest run test/scope-slice-claims.test.ts --reporter=junit --outputFile=../../registration-proof/after.xml) > registration-proof/after.log 2>&1
+          python3 - <<'PYPROOF'
+          import xml.etree.ElementTree as ET
+          tree=ET.parse('registration-proof/after.xml')
+          cases=list(tree.iter('testcase'))
+          assert len(cases) == 13, len(cases)
+          assert not any(c.find('failure') is not None or c.find('error') is not None or c.find('skipped') is not None for c in cases)
+          PYPROOF
+          git diff --exit-code
+          git diff --cached --exit-code
+          git rev-parse HEAD^{tree} > registration-proof/tested-tree.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: registration-native-proof
+          path: registration-proof/
