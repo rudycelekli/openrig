@@ -1,0 +1,94 @@
+name: Qualify Markdown container native red
+on:
+  push:
+    branches: [codex/qualify-markdown-container-red]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-red:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Exercise unchanged frozen regressions on rejected source
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import crypto from 'node:crypto';
+          import { spawn, execFileSync } from 'node:child_process';
+          const parent='2b2f4056d3014da44f00bda8b02e2982d2d0ec31';
+          const expected={"packages/daemon/src/domain/markdown-address.ts":"05d9b60c6b0aa3293bc9385f376b817f450fd6f20e62e59ec49c2ca512097e53","packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs":"d89a81f48c7b47ec4ca749fadece21d92a376bd4859e4e86b4d89cf6287304df","packages/daemon/test/markdown-address-tab-fence.test.ts":"cbeaad8a49a88fd92825ef14fd4f70fa5233bfd8aeaf68c5c5db56d04b02d5e2","packages/daemon/test/markdown-address-container-fence.test.ts":"e76f3697536fb35ae5087bc4b4051294f4225f76a6ab962455ccb13a8e89df47","packages/daemon/test/markdown-address-container-boundary.test.ts":"67af3982badbab599a258e9df3fd504937eb8a04a07251794e662ff9b1fbe60c"};
+          const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
+          const git=(...a)=>execFileSync('git',a,{encoding:'utf8',timeout:15000,maxBuffer:4*1024*1024});
+          if(git('rev-parse','HEAD').trim()!==process.env.GITHUB_SHA)throw new Error('Head drift');
+          const changed=git('diff','--name-only',parent,'HEAD').trim().split('\n').sort();
+          const allowed=['.github/workflows/qualify-markdown-container-red.yml','packages/daemon/test/markdown-address-container-fence.test.ts','packages/daemon/test/markdown-address-container-boundary.test.ts'].sort();
+          if(JSON.stringify(changed)!==JSON.stringify(allowed))throw new Error('Unexpected red-probe source diff');
+          for(const [file,sha]of Object.entries(expected))if(hash(fs.readFileSync(file))!==sha)throw new Error('Frozen source/test drift: '+file);
+          if(git('ls-tree','HEAD','--','packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs').split(/\s+/)[0]!=='100644')throw new Error('Rejected mode was altered');
+          for(const file of ['package-lock.json','packages/daemon/package.json','packages/daemon/vitest.config.ts','test/hermetic-env.setup.ts','.github/workflows/tests.yml']){
+           const original=execFileSync('git',['show',`${parent}:${file}`],{timeout:15000,maxBuffer:4*1024*1024});if(!original.equals(fs.readFileSync(file)))throw new Error('Native config drift');
+          }
+          fs.mkdirSync('native-red-evidence',{recursive:false});
+          const output=path.resolve('native-red-evidence');
+          const started=Date.now();const deadline=started+17*60*1000;const processes=[];let physicalScratch=null;
+          const availableBytes=()=>{const row=execFileSync('df',['-k',output],{encoding:'utf8',timeout:5000,maxBuffer:65536}).trim().split('\n').at(-1).trim().split(/\s+/);const value=Number(row[3])*1024;if(!Number.isFinite(value)||value<0)throw new Error('Invalid free-space measurement');return value;};
+          async function bounded(name,command,args,timeoutMs){
+           const beforeAvailable=availableBytes();if(beforeAvailable<1024**3)throw new Error('Hosted reserve unavailable');
+           const child=spawn(command,args,{detached:true,stdio:['ignore','pipe','pipe']});let stdout=Buffer.alloc(0),stderr=Buffer.alloc(0),reason=null;
+           const cleanup=()=>{try{process.kill(-child.pid,'SIGKILL');}catch(error){if(error.code!=='ESRCH')throw error;}};
+           const monitor=setInterval(()=>{try{const current=availableBytes();if(current<1024**3||beforeAvailable-current>3*1024**3){reason='disk-budget';cleanup();}}catch(error){reason='resource-measurement';cleanup();}},1000);
+           const timer=setTimeout(()=>{reason='timeout';cleanup();},Math.max(1,Math.min(timeoutMs,deadline-Date.now())));
+           const append=(which,data)=>{if(which==='stdout')stdout=Buffer.concat([stdout,data]);else stderr=Buffer.concat([stderr,data]);if(stdout.length+stderr.length>2*1024*1024){reason='output-limit';cleanup();}};
+           child.stdout.on('data',data=>append('stdout',data));child.stderr.on('data',data=>append('stderr',data));
+           const begin=Date.now();
+           const result=await new Promise((resolve,reject)=>{child.on('error',reject);child.on('close',(code,signal)=>resolve({code,signal}));}).finally(()=>{clearTimeout(timer);clearInterval(monitor);cleanup();});
+           fs.writeFileSync(path.join(output,name+'.stdout.log'),stdout);fs.writeFileSync(path.join(output,name+'.stderr.log'),stderr);
+           const receipt={name,command,args,...result,reason,beforeAvailableBytes:beforeAvailable,afterAvailableBytes:availableBytes(),reserveBytes:1024**3,maximumGrowthBytes:3*1024**3,durationMs:Date.now()-begin,stdoutSha256:hash(stdout),stderrSha256:hash(stderr),stdoutBytes:stdout.length,stderrBytes:stderr.length};processes.push(receipt);
+           if(reason||result.signal)throw new Error(name+' incomplete: '+reason+'/'+result.signal);return receipt;
+          }
+          try{
+           if((await bounded('npm-ci','npm',['ci'],5*60*1000)).code!==0)throw new Error('Native npm ci failed');
+           if((await bounded('native-build','npm',['run','build'],8*60*1000)).code!==0)throw new Error('Native build failed');
+           const scratch=fs.mkdtempSync(path.join(process.env.RUNNER_TEMP,'markdown-red.'));const physical=fs.realpathSync(scratch);physicalScratch=scratch;fs.mkdirSync(path.join(physical,'home'));
+           const nativeJson=path.join(output,'native-vitest.json');
+           const policy='(version 1)(allow default)(deny network-outbound)(allow network-outbound (remote ip "localhost:*"))(allow network-outbound (subpath (param "IPC_ROOT")))';
+           const files=['test/markdown-address-tab-fence.test.ts','test/markdown-address-container-fence.test.ts','test/markdown-address-container-boundary.test.ts'];
+           const args=['-i','HOME='+path.join(physical,'home'),'PATH='+process.env.PATH,'TMPDIR='+physical,'CI=true','TERM=xterm-256color','sandbox-exec','-D','IPC_ROOT='+physical,'-p',policy,'npm','run','test','-w','packages/daemon','--',...files,'--reporter=json','--outputFile='+nativeJson];
+           const result=await bounded('rejected-head-native','env',args,3*60*1000);
+           if(result.code!==1)throw new Error('Expected native assertion failure exit1, received'+result.code);
+           for(const [file,sha]of Object.entries(expected))if(hash(fs.readFileSync(file))!==sha)throw new Error('Frozen source/test changed during native execution');
+           if(git('diff','--name-only').trim())throw new Error('Tracked native source/oracle changed during run');
+           const stat=fs.statSync(nativeJson);if(stat.size>2*1024*1024)throw new Error('Native JSON exceeds bound');
+           const bytes=fs.readFileSync(nativeJson),raw=JSON.parse(bytes);
+           if(raw.success!==false||raw.numTotalTests!==144||raw.numPassedTests!==104||raw.numFailedTests!==40||raw.testResults.length!==3)throw new Error('Native failed-case counts do not match frozen contract');
+           if(raw.numPendingTests!==0||(raw.numTodoTests!==undefined&&raw.numTodoTests!==0)||(raw.numRuntimeErrorTestSuites!==undefined&&raw.numRuntimeErrorTestSuites!==0))throw new Error('Unexercised/runtime outcomes cannot establish red oracle');
+           const perFile={'markdown-address-tab-fence.test.ts':{total:16,passed:16,failed:0},'markdown-address-container-fence.test.ts':{total:80,passed:40,failed:40},'markdown-address-container-boundary.test.ts':{total:48,passed:48,failed:0}};
+           const cases=[];const observed=[];
+           for(const file of raw.testResults){const name=path.basename(file.name);const contract=perFile[name];if(!contract)throw new Error('Unknown native test file');
+            const rows=file.assertionResults;const counts={total:rows.length,passed:rows.filter(r=>r.status==='passed').length,failed:rows.filter(r=>r.status==='failed').length};
+            if(JSON.stringify(counts)!==JSON.stringify(contract)||file.status!==(counts.failed?'failed':'passed'))throw new Error('File case/status drift');
+            if(rows.some(r=>!r.fullName||!r.title||!['passed','failed'].includes(r.status)||r.status==='failed'&&(!r.failureMessages?.length||!r.failureMessages.some(m=>/AssertionError|ERR_ASSERTION|assertion/i.test(m)))))throw new Error('Unnamed/unexplained native failure');
+            cases.push(...rows.map(row=>({file:file.name,fullName:row.fullName,title:row.title,status:row.status,failureMessages:row.failureMessages})));observed.push(name);
+           }
+           if(new Set(observed).size!==3||new Set(cases.map(c=>c.file+'\0'+c.fullName)).size!==144)throw new Error('Native case collision');
+           const receipt={status:'expected-frozen-native-red-verified',head:process.env.GITHUB_SHA,rejectedParent:parent,runId:process.env.GITHUB_RUN_ID,runAttempt:process.env.GITHUB_RUN_ATTEMPT,repository:process.env.GITHUB_REPOSITORY,node:process.version,expected,processes,nativeJsonSha256:hash(bytes),passed:104,failed:40,total:144,cases,physicalScratch:physical,durationMs:Date.now()-started,scope:'Scoped genuine native Vitest red before revision; no repaired/full-suite acceptance or omission authority'};
+           fs.writeFileSync(path.join(output,'receipt.json'),JSON.stringify(receipt,null,2)+'\n');fs.rmSync(scratch,{recursive:true,force:true});console.log(JSON.stringify({status:receipt.status,total:144,passed:104,failed:40}));
+          }catch(error){fs.writeFileSync(path.join(output,'incomplete-receipt.json'),JSON.stringify({status:'incomplete-native-red',head:process.env.GITHUB_SHA,processes,error:String(error),durationMs:Date.now()-started},null,2)+'\n');throw error;}finally{if(physicalScratch)fs.rmSync(physicalScratch,{recursive:true,force:true});}
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: markdown-container-native-red-${{ github.sha }}-${{ github.run_attempt }}
+          path: native-red-evidence/
+          if-no-files-found: error
+          retention-days: 14
