@@ -25,10 +25,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: 12c010ceacd1847b1d6ee24668f22134832d6ba3
+          ref: fba563180d6b81cab27ffdef85a6c6b7438f3e8e
       - name: Verify frozen source and clean index
         run: |
-          test "$(git rev-parse HEAD)" = "12c010ceacd1847b1d6ee24668f22134832d6ba3"
+          test "$(git rev-parse HEAD)" = "fba563180d6b81cab27ffdef85a6c6b7438f3e8e"
           git diff --exit-code
           git diff --cached --exit-code
       - uses: actions/setup-node@v4
@@ -59,10 +59,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: 12c010ceacd1847b1d6ee24668f22134832d6ba3
+          ref: fba563180d6b81cab27ffdef85a6c6b7438f3e8e
       - name: Verify frozen source and clean index
         run: |
-          test "$(git rev-parse HEAD)" = "12c010ceacd1847b1d6ee24668f22134832d6ba3"
+          test "$(git rev-parse HEAD)" = "fba563180d6b81cab27ffdef85a6c6b7438f3e8e"
           git diff --exit-code
           git diff --cached --exit-code
       - uses: actions/setup-node@v4
@@ -79,10 +79,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: 12c010ceacd1847b1d6ee24668f22134832d6ba3
+          ref: fba563180d6b81cab27ffdef85a6c6b7438f3e8e
       - name: Verify frozen source and clean index
         run: |
-          test "$(git rev-parse HEAD)" = "12c010ceacd1847b1d6ee24668f22134832d6ba3"
+          test "$(git rev-parse HEAD)" = "fba563180d6b81cab27ffdef85a6c6b7438f3e8e"
           git diff --exit-code
           git diff --cached --exit-code
       - uses: actions/setup-node@v4
@@ -106,10 +106,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: 12c010ceacd1847b1d6ee24668f22134832d6ba3
+          ref: fba563180d6b81cab27ffdef85a6c6b7438f3e8e
       - name: Verify frozen source and clean index
         run: |
-          test "$(git rev-parse HEAD)" = "12c010ceacd1847b1d6ee24668f22134832d6ba3"
+          test "$(git rev-parse HEAD)" = "fba563180d6b81cab27ffdef85a6c6b7438f3e8e"
           git diff --exit-code
           git diff --cached --exit-code
       - uses: actions/setup-node@v4
@@ -148,10 +148,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: 12c010ceacd1847b1d6ee24668f22134832d6ba3
+          ref: fba563180d6b81cab27ffdef85a6c6b7438f3e8e
       - name: Verify frozen source and clean index
         run: |
-          test "$(git rev-parse HEAD)" = "12c010ceacd1847b1d6ee24668f22134832d6ba3"
+          test "$(git rev-parse HEAD)" = "fba563180d6b81cab27ffdef85a6c6b7438f3e8e"
           git diff --exit-code
           git diff --cached --exit-code
       - uses: actions/setup-node@v4
@@ -177,10 +177,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: 12c010ceacd1847b1d6ee24668f22134832d6ba3
+          ref: fba563180d6b81cab27ffdef85a6c6b7438f3e8e
       - name: Verify frozen source and clean index
         run: |
-          test "$(git rev-parse HEAD)" = "12c010ceacd1847b1d6ee24668f22134832d6ba3"
+          test "$(git rev-parse HEAD)" = "fba563180d6b81cab27ffdef85a6c6b7438f3e8e"
           git diff --exit-code
           git diff --cached --exit-code
       - uses: actions/setup-node@v4
@@ -194,9 +194,9 @@ jobs:
           set -euo pipefail
           mkdir -p markdown-proof
           git rev-parse HEAD > markdown-proof/source-head.txt
-          git show 2b2f4056d3014da44f00bda8b02e2982d2d0ec31:packages/daemon/src/domain/markdown-address.ts > packages/daemon/src/domain/markdown-address.ts
-          git show 2b2f4056d3014da44f00bda8b02e2982d2d0ec31:packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs > packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs
-          chmod 0644 packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs
+          git show 12c010ceacd1847b1d6ee24668f22134832d6ba3:packages/daemon/src/domain/markdown-address.ts > packages/daemon/src/domain/markdown-address.ts
+          git show 12c010ceacd1847b1d6ee24668f22134832d6ba3:packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs > packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs
+          chmod 0755 packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs
           set +e
           (cd packages/daemon && npx vitest run test/markdown-address-tab-fence.test.ts --reporter=junit --outputFile=../../markdown-proof/before.xml) > markdown-proof/before.log 2>&1
           code=$?
@@ -206,8 +206,8 @@ jobs:
           import xml.etree.ElementTree as ET
           cases=list(ET.parse('markdown-proof/before.xml').iter('testcase'))
           failures=[c for c in cases if c.find('failure') is not None]
-          assert len(cases)==120, len(cases)
-          assert len(failures)==69, len(failures)
+          assert len(cases)==138, len(cases)
+          assert len(failures)==9, len(failures)
           assert not any(c.find('error') is not None or c.find('skipped') is not None for c in cases)
           PROOF
       - name: Restore exact candidate and run all focused controls
@@ -221,7 +221,7 @@ jobs:
           python3 - <<'PROOF'
           import xml.etree.ElementTree as ET
           cases=list(ET.parse('markdown-proof/after.xml').iter('testcase'))
-          assert len(cases)==120, len(cases)
+          assert len(cases)==138, len(cases)
           assert not any(c.find('failure') is not None or c.find('error') is not None or c.find('skipped') is not None for c in cases)
           PROOF
           git diff --exit-code
