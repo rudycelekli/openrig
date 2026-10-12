@@ -25,6 +25,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 25c9bd5c3369084976ee0b0164ddd24226fb2be6
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "25c9bd5c3369084976ee0b0164ddd24226fb2be6"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -53,6 +59,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 25c9bd5c3369084976ee0b0164ddd24226fb2be6
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "25c9bd5c3369084976ee0b0164ddd24226fb2be6"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -67,6 +79,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 25c9bd5c3369084976ee0b0164ddd24226fb2be6
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "25c9bd5c3369084976ee0b0164ddd24226fb2be6"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -88,6 +106,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: 25c9bd5c3369084976ee0b0164ddd24226fb2be6
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "25c9bd5c3369084976ee0b0164ddd24226fb2be6"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -124,6 +148,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 25c9bd5c3369084976ee0b0164ddd24226fb2be6
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "25c9bd5c3369084976ee0b0164ddd24226fb2be6"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -137,3 +167,70 @@ jobs:
           name: installed-scenario-evidence
           path: dist/pr-scenarios/
           if-no-files-found: error
+
+  rollback-proof:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: 25c9bd5c3369084976ee0b0164ddd24226fb2be6
+      - name: Verify exact source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "25c9bd5c3369084976ee0b0164ddd24226fb2be6"
+          git diff --exit-code
+          git diff --cached --exit-code
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: brew install tmux
+      - run: npm ci
+      - name: Prove both regressions on previous production
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p rollback-proof
+          git rev-parse HEAD > rollback-proof/source-head.txt
+          git show 751265e1545db80177502590fbb40f52510839f6:packages/cli/src/commands/scope.ts > packages/cli/src/commands/scope.ts
+          npm run build
+          set +e
+          (cd packages/cli && npx vitest run test/scope-slice-claims.test.ts -t 'an (incomplete creator preserves concurrent parent edits|isolated incomplete failure retains parent persistence)' --reporter=junit --outputFile=../../rollback-proof/before.xml) > rollback-proof/before.log 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 1
+          python3 - <<'PROOF'
+          import xml.etree.ElementTree as ET
+          tree=ET.parse('rollback-proof/before.xml')
+          cases=[c for c in tree.iter('testcase') if c.find('failure') is not None]
+          assert len(cases)==4, [(c.attrib, list(c)) for c in cases]
+          for c in cases:
+              assert any(name in c.attrib['name'] for name in ['an incomplete creator preserves concurrent parent edits', 'an isolated incomplete failure retains parent persistence'])
+              assert 'AssertionError' in ''.join(c.find('failure').itertext())
+          PROOF
+      - name: Restore exact source and run native controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD -- packages/cli/src/commands/scope.ts
+          git diff --exit-code
+          git diff --cached --exit-code
+          npm run build
+          (cd packages/cli && npx vitest run test/scope-slice-claims.test.ts --reporter=junit --outputFile=../../rollback-proof/after.xml) > rollback-proof/after.log 2>&1
+          python3 - <<'PROOF'
+          import xml.etree.ElementTree as ET
+          tree=ET.parse('rollback-proof/after.xml')
+          cases=list(tree.iter('testcase'))
+          assert len(cases)==17, len(cases)
+          assert not any(c.find('failure') is not None or c.find('error') is not None or c.find('skipped') is not None for c in cases)
+          PROOF
+          git diff --exit-code
+          git diff --cached --exit-code
+          git rev-parse HEAD^{tree} > rollback-proof/tested-tree.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rollback-native-proof
+          path: rollback-proof/
