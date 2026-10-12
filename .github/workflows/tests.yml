@@ -25,6 +25,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: bab50b130870cd8b2187a5833cd3b87d5100489c
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "bab50b130870cd8b2187a5833cd3b87d5100489c"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -53,6 +59,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: bab50b130870cd8b2187a5833cd3b87d5100489c
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "bab50b130870cd8b2187a5833cd3b87d5100489c"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -67,6 +79,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: bab50b130870cd8b2187a5833cd3b87d5100489c
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "bab50b130870cd8b2187a5833cd3b87d5100489c"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -88,6 +106,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: bab50b130870cd8b2187a5833cd3b87d5100489c
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "bab50b130870cd8b2187a5833cd3b87d5100489c"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -124,6 +148,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: bab50b130870cd8b2187a5833cd3b87d5100489c
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "bab50b130870cd8b2187a5833cd3b87d5100489c"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -137,3 +167,68 @@ jobs:
           name: installed-scenario-evidence
           path: dist/pr-scenarios/
           if-no-files-found: error
+
+
+  markdown-proof:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: bab50b130870cd8b2187a5833cd3b87d5100489c
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "bab50b130870cd8b2187a5833cd3b87d5100489c"
+          git diff --exit-code
+          git diff --cached --exit-code
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Prove regressions at the prior reviewed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p markdown-proof
+          git rev-parse HEAD > markdown-proof/source-head.txt
+          git show 2b2f4056d3014da44f00bda8b02e2982d2d0ec31:packages/daemon/src/domain/markdown-address.ts > packages/daemon/src/domain/markdown-address.ts
+          git show 2b2f4056d3014da44f00bda8b02e2982d2d0ec31:packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs > packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs
+          chmod 0644 packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs
+          set +e
+          (cd packages/daemon && npx vitest run test/markdown-address-tab-fence.test.ts --reporter=junit --outputFile=../../markdown-proof/before.xml) > markdown-proof/before.log 2>&1
+          code=$?
+          set -e
+          test "$code" -eq 1
+          python3 - <<'PROOF'
+          import xml.etree.ElementTree as ET
+          cases=list(ET.parse('markdown-proof/before.xml').iter('testcase'))
+          failures=[c for c in cases if c.find('failure') is not None]
+          assert len(cases)==120, len(cases)
+          assert len(failures)==69, len(failures)
+          assert not any(c.find('error') is not None or c.find('skipped') is not None for c in cases)
+          PROOF
+      - name: Restore exact candidate and run all focused controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD -- packages/daemon/src/domain/markdown-address.ts packages/daemon/assets/plugins/openrig-core/skills/loading-addressable-markdown/scripts/resolve-markdown.mjs
+          git diff --exit-code
+          git diff --cached --exit-code
+          (cd packages/daemon && npx vitest run test/markdown-address-tab-fence.test.ts --reporter=junit --outputFile=../../markdown-proof/after.xml) > markdown-proof/after.log 2>&1
+          python3 - <<'PROOF'
+          import xml.etree.ElementTree as ET
+          cases=list(ET.parse('markdown-proof/after.xml').iter('testcase'))
+          assert len(cases)==120, len(cases)
+          assert not any(c.find('failure') is not None or c.find('error') is not None or c.find('skipped') is not None for c in cases)
+          PROOF
+          git diff --exit-code
+          git diff --cached --exit-code
+          git rev-parse HEAD^{tree} > markdown-proof/tested-tree.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: markdown-list-native-proof
+          path: markdown-proof/
