@@ -1,0 +1,17 @@
+{
+  "repository": "msitarzewski/agency-agents",
+  "base": "4bce55aa8b97385a5ad7b37d09b44ab976b96573",
+  "path": "engineering/engineering-data-engineer.md",
+  "baseGitBlob": "fffeb987e814c23f0a32900e216ee6ad60bb02ed",
+  "approvedPatchSha256": "5a7d403ccd24fe9f45fc65bbfa731e44f6d1bf4c41b96b2cad33620fbea93f0d",
+  "sources": {
+    "before": {
+      "markdownSha256": "f8437b1ec78d428a103e5db72ce21fc1ec991ee79f8b3f4f54a05888d9488cf6",
+      "completeCodeBlockSha256": "615eb35192c5aaaf403e0388b187bd4e353d6eebcb98dd1fd89dcd2c51ab520d"
+    },
+    "after": {
+      "markdownSha256": "5cf315235c3e2cf2c80ce7c2809662c0d93d4fac71ebda6b52777fb20631862c",
+      "completeCodeBlockSha256": "cf1f3e9c7b03e9fffb519cc75c28e336ab8361c60d980b3da06ca763160a1c21"
+    }
+  }
+}
