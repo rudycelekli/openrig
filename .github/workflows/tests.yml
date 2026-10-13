@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tests-${{ github.ref }}
+  group: provenance-native-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,6 +25,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: cf7bac9cc05c1658de6b1d991dd0cfab9908f319
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "cf7bac9cc05c1658de6b1d991dd0cfab9908f319"
+          test "$(git rev-parse HEAD^{tree})" = "4e207396dfb6693bf8b5091da7a5ebb08e977c00"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -45,6 +52,13 @@ jobs:
         with:
           name: pack-lists
           path: pack-lists/
+      - name: Verify final tested source
+        if: always()
+        run: |
+          test "$(git rev-parse HEAD)" = "cf7bac9cc05c1658de6b1d991dd0cfab9908f319"
+          test "$(git rev-parse HEAD^{tree})" = "4e207396dfb6693bf8b5091da7a5ebb08e977c00"
+          git diff --exit-code
+          git diff --cached --exit-code
 
   typecheck:
     runs-on: ubuntu-latest
@@ -53,12 +67,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: cf7bac9cc05c1658de6b1d991dd0cfab9908f319
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "cf7bac9cc05c1658de6b1d991dd0cfab9908f319"
+          test "$(git rev-parse HEAD^{tree})" = "4e207396dfb6693bf8b5091da7a5ebb08e977c00"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - name: Verify final tested source
+        if: always()
+        run: |
+          test "$(git rev-parse HEAD)" = "cf7bac9cc05c1658de6b1d991dd0cfab9908f319"
+          test "$(git rev-parse HEAD^{tree})" = "4e207396dfb6693bf8b5091da7a5ebb08e977c00"
+          git diff --exit-code
+          git diff --cached --exit-code
 
   repo-checks:
     runs-on: ubuntu-latest
@@ -67,12 +95,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: cf7bac9cc05c1658de6b1d991dd0cfab9908f319
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "cf7bac9cc05c1658de6b1d991dd0cfab9908f319"
+          test "$(git rev-parse HEAD^{tree})" = "4e207396dfb6693bf8b5091da7a5ebb08e977c00"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run test:repo
+      - name: Verify final tested source
+        if: always()
+        run: |
+          test "$(git rev-parse HEAD)" = "cf7bac9cc05c1658de6b1d991dd0cfab9908f319"
+          test "$(git rev-parse HEAD^{tree})" = "4e207396dfb6693bf8b5091da7a5ebb08e977c00"
+          git diff --exit-code
+          git diff --cached --exit-code
 
   package-tests:
     # macOS, the platform OpenRig runs on: several daemon and cli tests read macOS ps columns,
@@ -88,6 +130,13 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: cf7bac9cc05c1658de6b1d991dd0cfab9908f319
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "cf7bac9cc05c1658de6b1d991dd0cfab9908f319"
+          test "$(git rev-parse HEAD^{tree})" = "4e207396dfb6693bf8b5091da7a5ebb08e977c00"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -104,7 +153,7 @@ jobs:
           # Same system bytes, nonprivileged mode; no system file is changed.
           /usr/bin/install -m 0755 /bin/ps "$suite_root/bin/ps"
           # Only this job's temporary sockets (including tmux) are reachable.
-          env -i HOME="$suite_root/home" PATH="$PATH" TMPDIR="$suite_root" TMUX_TMPDIR="$suite_root" \
+          env -i PATH="$PATH" TMUX_\
             CI=true TERM=xterm-256color \
             sandbox-exec -D IPC_ROOT="$suite_root" -p '(version 1)(allow default)(deny network-outbound)(allow network-outbound (remote ip "localhost:*"))(allow network-outbound (subpath (param "IPC_ROOT")))' \
             /bin/bash -s "${{ matrix.package }}" <<'SUITE'
@@ -116,6 +165,13 @@ jobs:
           test "$(command -v ps)" = "$TMPDIR/bin/ps"
           exec npm run test -w "packages/$1"
           SUITE
+      - name: Verify final tested source
+        if: always()
+        run: |
+          test "$(git rev-parse HEAD)" = "cf7bac9cc05c1658de6b1d991dd0cfab9908f319"
+          test "$(git rev-parse HEAD^{tree})" = "4e207396dfb6693bf8b5091da7a5ebb08e977c00"
+          git diff --exit-code
+          git diff --cached --exit-code
 
   installed-scenario:
     runs-on: ubuntu-latest
@@ -124,6 +180,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: cf7bac9cc05c1658de6b1d991dd0cfab9908f319
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "cf7bac9cc05c1658de6b1d991dd0cfab9908f319"
+          test "$(git rev-parse HEAD^{tree})" = "4e207396dfb6693bf8b5091da7a5ebb08e977c00"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -137,3 +200,11 @@ jobs:
           name: installed-scenario-evidence
           path: dist/pr-scenarios/
           if-no-files-found: error
+      - name: Verify final tested source
+        if: always()
+        run: |
+          test "$(git rev-parse HEAD)" = "cf7bac9cc05c1658de6b1d991dd0cfab9908f319"
+          test "$(git rev-parse HEAD^{tree})" = "4e207396dfb6693bf8b5091da7a5ebb08e977c00"
+          git diff --exit-code
+          git diff --cached --exit-code
+
