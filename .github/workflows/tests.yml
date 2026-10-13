@@ -1,139 +1,81 @@
-name: Tests
+name: Agency example converter proof
 
-# Builds, type-checks and runs every test suite on a clean GitHub runner, and records the file
-# list each published package would contain. Each suite is its own job so one failure does not
-# hide the others. No provider credentials or operator configuration are supplied.
-# Package suites deny external networking; scenario runtime has no external route.
-
+# Task-owned contribution experiment on the OpenRig fork. This is not the
+# official Agency or OpenRig test workflow. No skill or production install,
+# release or deployment. PyYAML is installed as a test parser dependency.
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
-  group: tests-${{ github.ref }}
-  cancel-in-progress: true
-
+  group: agency-examples-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
-  build-and-package:
+  converters:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - name: Record the published file list of each package
-        run: |
-          set -euo pipefail
-          mkdir -p pack-lists
-          for p in cli daemon tui; do
-            (cd packages/$p && npm pack --dry-run --json --ignore-scripts) \
-              | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const f of JSON.parse(s)[0].files)console.log(f.path)})' \
-              | sort > pack-lists/$p.txt
-            echo "$p: $(wc -l < pack-lists/$p.txt) files"
-          done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pack-lists
-          path: pack-lists/
-
-  typecheck:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-
-  repo-checks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run test:repo
-
-  package-tests:
-    # macOS, the platform OpenRig runs on: several daemon and cli tests read macOS ps columns,
-    # file-inode behaviour and release tags.
-    runs-on: macos-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        package: [daemon, cli, tui, ui]
+        candidate: [identity-default, support-known-status, shap-kernel]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: brew install tmux
-      - run: npm ci
-      - name: Build the packages the tests import
-        run: npm run build
-      - name: Run the suite without ambient credentials or external network
+          path: proof
+      - name: Select an immutable source revision
+        id: source
+        env:
+          CANDIDATE: ${{ matrix.candidate }}
         run: |
-          suite_root=$(mktemp -d "$RUNNER_TEMP/opr-test.XXXXXX")
-          suite_root=$(cd "$suite_root" && pwd -P)
-          mkdir -p "$suite_root/home" "$suite_root/bin"
-          # Same system bytes, nonprivileged mode; no system file is changed.
-          /usr/bin/install -m 0755 /bin/ps "$suite_root/bin/ps"
-          # Only this job's temporary sockets (including tmux) are reachable.
-          env -i HOME="$suite_root/home" PATH="$PATH" TMPDIR="$suite_root" TMUX_TMPDIR="$suite_root" \
-            CI=true TERM=xterm-256color \
-            sandbox-exec -D IPC_ROOT="$suite_root" -p '(version 1)(allow default)(deny network-outbound)(allow network-outbound (remote ip "localhost:*"))(allow network-outbound (subpath (param "IPC_ROOT")))' \
-            /bin/bash -s "${{ matrix.package }}" <<'SUITE'
-          set -euo pipefail
-          node scripts/ci-macos-process-probe.mjs
-          # The production readers use bare ps. Select real system bytes only after
-          # self/owned-child observation and network/IPC confinement are proved.
-          export PATH="$TMPDIR/bin:$PATH"
-          test "$(command -v ps)" = "$TMPDIR/bin/ps"
-          exec npm run test -w "packages/$1"
-          SUITE
-
-  installed-scenario:
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@v4
+          python3 - <<'PY'
+          import json, os
+          manifest = json.load(open('proof/campaign-proof/agency-examples/manifest.json'))
+          item = manifest['candidates'][os.environ['CANDIDATE']]
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f"head={item['head']}\n")
+          PY
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          repository: rudycelekli/agency-agents
+          ref: ${{ steps.source.outputs.head }}
+          fetch-depth: 2
           persist-credentials: false
-      - uses: actions/setup-node@v4
+          path: source
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - name: Installed package, daemon restart, and seeded durability failure
-        run: bash scripts/run-pr-scenarios.sh
-      - uses: actions/upload-artifact@v4
+          python-version: '3.11'
+      - name: Supply the converter's declared parser dependency
+        run: python3 -m pip install PyYAML==6.0.2
+      - name: Verify source bytes and test the receipt evaluator
+        env:
+          CANDIDATE: ${{ matrix.candidate }}
+        run: |
+          mkdir -p evidence
+          python3 proof/campaign-proof/agency-examples/verify.py guard source "$CANDIDATE" > evidence/source-guard.json
+          python3 proof/campaign-proof/agency-examples/verify.py self-test > evidence/evaluator-controls.json
+          git -C proof rev-parse HEAD > evidence/proof-head.txt
+          python3 --version > evidence/runtime.txt
+          python3 -c 'import yaml; print(yaml.__version__)' >> evidence/runtime.txt
+      - name: Run the complete converter contract and agent checks
+        env:
+          CANDIDATE: ${{ matrix.candidate }}
+        run: |
+          set -euo pipefail
+          agent=$(python3 - "$CANDIDATE" <<'PY'
+          import json, sys
+          print(json.load(open('proof/campaign-proof/agency-examples/manifest.json'))['candidates'][sys.argv[1]]['file'])
+          PY
+          )
+          (cd source && bash scripts/lint-agents.sh "$agent") 2>&1 | tee evidence/lint.log
+          (cd source && bash scripts/check-agent-originality.sh "$agent") 2>&1 | tee evidence/originality.log
+          (cd source && bash scripts/test-convert-outputs.sh --drift=advisory) 2>&1 | tee evidence/converters.log
+          python3 proof/campaign-proof/agency-examples/verify.py summary evidence/converters.log > evidence/converter-verdict.json
+          python3 proof/campaign-proof/agency-examples/verify.py guard source "$CANDIDATE" > evidence/source-guard-after.json
+          test -z "$(git -C source status --porcelain --untracked-files=normal)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: installed-scenario-evidence
-          path: dist/pr-scenarios/
+          name: agency-example-${{ matrix.candidate }}
+          path: evidence/
           if-no-files-found: error

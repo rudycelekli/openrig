@@ -1,0 +1,171 @@
+{
+  "sourceSha256": "26b4c8706d88ea30358254dd5ac1a2886766015918300130dff070230e05794b",
+  "executedBlockSha256": "b42bbd0d8472f69cbed11e07aaf4db168818a6141cdca3f33664ca67e03aef73",
+  "python": "3.13.5 | packaged by Anaconda, Inc. | (main, Jun 12 2025, 11:23:37) [Clang 14.0.6 ]",
+  "pandas": "2.2.3",
+  "scope": "complete literalSupportAnalytics block loaded unchanged; actualoutreach producer executes; no account/customer actions",
+  "cases": [
+    {
+      "case": "none",
+      "actual": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "expected": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "pass": true
+    },
+    {
+      "case": "nan",
+      "actual": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "expected": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "pass": true
+    },
+    {
+      "case": "pd_na",
+      "actual": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "expected": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "pass": true
+    },
+    {
+      "case": "resolved",
+      "actual": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "expected": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "pass": true
+    },
+    {
+      "case": "open_overdue",
+      "actual": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": [
+          "open_overdue"
+        ]
+      },
+      "expected": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": [
+          "open_overdue"
+        ]
+      },
+      "pass": true
+    },
+    {
+      "case": "open_recent",
+      "actual": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "expected": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "pass": true
+    },
+    {
+      "case": "known_high_volume",
+      "actual": {
+        "high_volume_customers": [
+          "known_high_volume"
+        ],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "expected": {
+        "high_volume_customers": [
+          "known_high_volume"
+        ],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "pass": true
+    },
+    {
+      "case": "known_low_csat",
+      "actual": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [
+          "known_low_csat"
+        ],
+        "overdue_customers": []
+      },
+      "expected": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [
+          "known_low_csat"
+        ],
+        "overdue_customers": []
+      },
+      "pass": true
+    },
+    {
+      "case": "missing_status_volume",
+      "actual": {
+        "high_volume_customers": [
+          "missing_status_volume"
+        ],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "expected": {
+        "high_volume_customers": [
+          "missing_status_volume"
+        ],
+        "low_satisfaction_customers": [],
+        "overdue_customers": []
+      },
+      "pass": true
+    },
+    {
+      "case": "missing_status_low_csat",
+      "actual": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [
+          "missing_status_low_csat"
+        ],
+        "overdue_customers": []
+      },
+      "expected": {
+        "high_volume_customers": [],
+        "low_satisfaction_customers": [
+          "missing_status_low_csat"
+        ],
+        "overdue_customers": []
+      },
+      "pass": true
+    }
+  ],
+  "passed": 10,
+  "failed": 0
+}

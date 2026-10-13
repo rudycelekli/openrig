@@ -1,0 +1,62 @@
+{
+  "sourceSha256": "52226261212716d28d0c50771f0293bb42f3ccbf25fb15323c3e45fa36ac0594",
+  "executedBlockSha256": "46600d05e5b9827ebbb28b0e9602a9f46023704dd5e3a8d584450cce4ea13ce6",
+  "python": "3.13.5 | packaged by Anaconda, Inc. | (main, Jun 12 2025, 11:23:37) [Clang 14.0.6 ]",
+  "scope": "complete literalIdentityMatcher; no database/graphmutation; subclassscore/weight implementation unchanged",
+  "cases": [
+    {
+      "case": "email_exact",
+      "pass": true,
+      "actual": 1.0,
+      "expected": 1.0
+    },
+    {
+      "case": "email_mismatch",
+      "pass": true,
+      "actual": 0.0,
+      "expected": 0.0
+    },
+    {
+      "case": "nickname",
+      "pass": true,
+      "actual": 1.0,
+      "expected": 1.0
+    },
+    {
+      "case": "missing",
+      "pass": true,
+      "actual": 0.0,
+      "expected": 0.0
+    },
+    {
+      "case": "empty",
+      "pass": true,
+      "actual": 0.0,
+      "expected": 0.0
+    },
+    {
+      "case": "no_rules",
+      "pass": true,
+      "actual": 0.0,
+      "expected": 0.0
+    },
+    {
+      "case": "negative_weight",
+      "pass": true
+    },
+    {
+      "case": "infinite_weight",
+      "pass": true
+    },
+    {
+      "case": "nan_weight",
+      "pass": true
+    },
+    {
+      "case": "unsupported_comparator",
+      "pass": true
+    }
+  ],
+  "passed": 10,
+  "failed": 0
+}

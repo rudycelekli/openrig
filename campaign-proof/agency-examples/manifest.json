@@ -1,0 +1,76 @@
+{
+  "helperRepository": "rudycelekli/openrig",
+  "sourceRepository": "rudycelekli/agency-agents",
+  "scope": "task-ownedLinuxnativefull32converterproof; localfullsnippetnativebefore/afterreceipts separatelypinned; notofficialAgencyCI",
+  "candidates": {
+    "identity-default": {
+      "head": "2903b79e0ac6fa1e23cc8de3f04822bf431651b9",
+      "base": "4bce55aa8b97385a5ad7b37d09b44ab976b96573",
+      "file": "specialized/identity-graph-operator.md",
+      "beforeFileSha256": "ecf53d7a9a834db2390a4b093115a4073213ab8fd59f3115843a7a9dff08859a",
+      "afterFileSha256": "52226261212716d28d0c50771f0293bb42f3ccbf25fb15323c3e45fa36ac0594",
+      "beforeBlocksSha256": [
+        "e6dd627337d0d2d5060541bcd17710ca07dcede0165de79f895a3c6392d46e74"
+      ],
+      "afterBlocksSha256": [
+        "46600d05e5b9827ebbb28b0e9602a9f46023704dd5e3a8d584450cce4ea13ce6"
+      ],
+      "nativeAfterReceiptSha256": "abcc2f399782d0ab5d340d1a8f9f4df1afa54d7a774d6551941a8087f62553a3",
+      "nativeBeforeReceiptFile": "identity-default-reproducer-baseline.json",
+      "nativeBeforeReceiptSha256": "f556f230fff3b72e5e32d2d49d5a167a63f4777abda0d4c766f28495f1896258",
+      "nativeAfterReceiptFile": "identity-default-reproducer-after.json",
+      "nativeProducerFile": "identity-default-reproduce.py",
+      "nativeProducerSha256": "41f57f5908ea06a90a4b8bc5876aed88eef6bd4463ae1a517b7c586d075b3b72"
+    },
+    "support-known-status": {
+      "head": "79f2b44a040d3305b3aa74d59eac17853d249170",
+      "base": "4bce55aa8b97385a5ad7b37d09b44ab976b96573",
+      "file": "support/support-support-responder.md",
+      "beforeFileSha256": "018d6711b3caee18e8ad167466555e072b5582d0bc7bc9fb286b3a3036f9e158",
+      "afterFileSha256": "26b4c8706d88ea30358254dd5ac1a2886766015918300130dff070230e05794b",
+      "beforeBlocksSha256": [
+        "b377b8a08dbd502150eda05bb0c9d97a83f48c03daf0ca14e28924b26f288ebc",
+        "aeaa4cc86a356e3a0ad949c4183e886243237eb1d831343a0779bdd29da07d54"
+      ],
+      "afterBlocksSha256": [
+        "b42bbd0d8472f69cbed11e07aaf4db168818a6141cdca3f33664ca67e03aef73",
+        "aeaa4cc86a356e3a0ad949c4183e886243237eb1d831343a0779bdd29da07d54"
+      ],
+      "nativeAfterReceiptSha256": "d2f8da1edfde92da441d96d5b8a79c9cd6beb20ebbb4680280514163a882c699",
+      "nativeBeforeReceiptFile": "support-overdue-before.json",
+      "nativeBeforeReceiptSha256": "a3c5f62ed5238ef553848944d5bb5b3b893badb5de00160f9c9fcd9d1a3edd11",
+      "nativeAfterReceiptFile": "support-overdue-after.json",
+      "nativeProducerFile": "support-overdue-reproduce.py",
+      "nativeProducerSha256": "0acc5c4c8c96176fcbbd768ae9d6ee1455125b2e291968bf99b2518631f0ede4"
+    },
+    "shap-kernel": {
+      "head": "683cdbc55f1c3f24befaa712cd38b7adba5a73ae",
+      "base": "4bce55aa8b97385a5ad7b37d09b44ab976b96573",
+      "file": "specialized/specialized-model-qa.md",
+      "beforeFileSha256": "1ddd2678e76633da76f9d4c072c699e06a5050d7ca2a1c7b400434d4a787275d",
+      "afterFileSha256": "effef0d607e8955ff846e1c264237d6d14dd573bcfd02c191e126868c3cbffde",
+      "beforeBlocksSha256": [
+        "fc69229f3baad076ed7ebc618edfa281b397eee54fcf15c2a1cc6cd2d5f1264d",
+        "96ea14b5b9a6ca3b6c427d8ee1ec76419762dd7b418b0a9ff40acfaa43349a3e",
+        "893d1c705f7332d9f0ca0014ccb2fa4deb68e31a3f397a6c31b8b879573fd490",
+        "f7b3ffe9a78804a7059e1047a0ecbd03d5c9215a948011a0c6d32dee490f8405",
+        "7cb616eda821636c486ad3ca8af2449716f4bd3f12139ca71bb23c8466427584",
+        "ec259f5aa872a74d43549dcca60618c6b36fd54cd4b7cfbcae737bfc8a93ce80"
+      ],
+      "afterBlocksSha256": [
+        "fc69229f3baad076ed7ebc618edfa281b397eee54fcf15c2a1cc6cd2d5f1264d",
+        "96ea14b5b9a6ca3b6c427d8ee1ec76419762dd7b418b0a9ff40acfaa43349a3e",
+        "893d1c705f7332d9f0ca0014ccb2fa4deb68e31a3f397a6c31b8b879573fd490",
+        "b974634e4b1af0bce4fc09b5dcae10bfdfb08fc0e363b9ec09a16f3040891d15",
+        "7cb616eda821636c486ad3ca8af2449716f4bd3f12139ca71bb23c8466427584",
+        "ec259f5aa872a74d43549dcca60618c6b36fd54cd4b7cfbcae737bfc8a93ce80"
+      ],
+      "nativeAfterReceiptSha256": "946bfd91d29324a49039ca5d95f1d4e775e21bb6b5d3bfe6418e911cf295930f",
+      "nativeBeforeReceiptFile": "shap-kernel-before.json",
+      "nativeBeforeReceiptSha256": "28778b6c09c3b455aa2d5d63e73fb9138cff50d9a170ba1b7f5d7bd70db816b8",
+      "nativeAfterReceiptFile": "shap-kernel-after.json",
+      "nativeProducerFile": "shap-kernel-reproduce.py",
+      "nativeProducerSha256": "fc093d6ffa46f8e9707017cac7d3b53ae06af23a5f1648faef5de77a24b8fa5b"
+    }
+  }
+}

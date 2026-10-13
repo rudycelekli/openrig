@@ -1,0 +1,177 @@
+{
+  "sourceSha256": "effef0d607e8955ff846e1c264237d6d14dd573bcfd02c191e126868c3cbffde",
+  "executedBlockSha256": [
+    "fc69229f3baad076ed7ebc618edfa281b397eee54fcf15c2a1cc6cd2d5f1264d",
+    "96ea14b5b9a6ca3b6c427d8ee1ec76419762dd7b418b0a9ff40acfaa43349a3e",
+    "893d1c705f7332d9f0ca0014ccb2fa4deb68e31a3f397a6c31b8b879573fd490",
+    "b974634e4b1af0bce4fc09b5dcae10bfdfb08fc0e363b9ec09a16f3040891d15",
+    "7cb616eda821636c486ad3ca8af2449716f4bd3f12139ca71bb23c8466427584",
+    "ec259f5aa872a74d43549dcca60618c6b36fd54cd4b7cfbcae737bfc8a93ce80"
+  ],
+  "versions": {
+    "shap": "0.49.1",
+    "numpy": "2.1.3",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.8.0",
+    "numba": "0.61.0",
+    "scipy": "1.14.1",
+    "matplotlib": "3.10.8"
+  },
+  "scope": "all literal Python blocks loaded unchanged; real fitted estimator, SHAP computation and plot renderer; only waterfall argument observed while original renderer still called",
+  "cases": [
+    {
+      "case": "linear_kernel_global",
+      "pass": true,
+      "numerical": [
+        {
+          "feature": "alpha",
+          "mean_abs_shap": 1.0575245374033897
+        },
+        {
+          "feature": "beta",
+          "mean_abs_shap": 0.6741773745251772
+        }
+      ],
+      "plots": {
+        "shap_beeswarm.png": {
+          "bytes": 26084,
+          "png": true
+        },
+        "shap_importance.png": {
+          "bytes": 19871,
+          "png": true
+        }
+      }
+    },
+    {
+      "case": "linear_kernel_local",
+      "pass": true,
+      "numerical": {
+        "base_plus_contributions": 1.9494182657493582,
+        "native_model_prediction": 1.9494182657493582
+      },
+      "plots": {
+        "shap_waterfall_obs_0.png": {
+          "bytes": 22363,
+          "png": true
+        }
+      }
+    },
+    {
+      "case": "logistic_kernel_global",
+      "pass": true,
+      "numerical": [
+        {
+          "feature": "alpha",
+          "mean_abs_shap": 0.09878792186354836
+        },
+        {
+          "feature": "beta",
+          "mean_abs_shap": 0.060656803880729755
+        }
+      ],
+      "plots": {
+        "shap_beeswarm.png": {
+          "bytes": 26700,
+          "png": true
+        },
+        "shap_importance.png": {
+          "bytes": 20478,
+          "png": true
+        }
+      }
+    },
+    {
+      "case": "logistic_kernel_local",
+      "pass": true,
+      "numerical": {
+        "base_plus_contributions": 0.711985003367683,
+        "native_model_prediction": 0.711985003367683
+      },
+      "plots": {
+        "shap_waterfall_obs_0.png": {
+          "bytes": 22647,
+          "png": true
+        }
+      }
+    },
+    {
+      "case": "forest_classifier_control_global",
+      "pass": true,
+      "numerical": [
+        {
+          "feature": "alpha",
+          "mean_abs_shap": 0.2422222222222222
+        },
+        {
+          "feature": "beta",
+          "mean_abs_shap": 0.05722222222222222
+        }
+      ],
+      "plots": {
+        "shap_beeswarm.png": {
+          "bytes": 26518,
+          "png": true
+        },
+        "shap_importance.png": {
+          "bytes": 20075,
+          "png": true
+        }
+      }
+    },
+    {
+      "case": "forest_classifier_control_local",
+      "pass": true,
+      "numerical": {
+        "base_plus_contributions": 1.0,
+        "native_model_prediction": 1.0
+      },
+      "plots": {
+        "shap_waterfall_obs_0.png": {
+          "bytes": 22169,
+          "png": true
+        }
+      }
+    },
+    {
+      "case": "forest_regressor_control_global",
+      "pass": true,
+      "numerical": [
+        {
+          "feature": "alpha",
+          "mean_abs_shap": 0.5720646447606331
+        },
+        {
+          "feature": "beta",
+          "mean_abs_shap": 0.30800687326555276
+        }
+      ],
+      "plots": {
+        "shap_beeswarm.png": {
+          "bytes": 26409,
+          "png": true
+        },
+        "shap_importance.png": {
+          "bytes": 20033,
+          "png": true
+        }
+      }
+    },
+    {
+      "case": "forest_regressor_control_local",
+      "pass": true,
+      "numerical": {
+        "base_plus_contributions": 1.8681626172096233,
+        "native_model_prediction": 1.868162617209623
+      },
+      "plots": {
+        "shap_waterfall_obs_0.png": {
+          "bytes": 22204,
+          "png": true
+        }
+      }
+    }
+  ],
+  "passed": 8,
+  "failed": 0
+}

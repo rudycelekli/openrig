@@ -1,0 +1,46 @@
+{
+  "sourceSha256": "ecf53d7a9a834db2390a4b093115a4073213ab8fd59f3115843a7a9dff08859a",
+  "executedBlockSha256": "e6dd627337d0d2d5060541bcd17710ca07dcede0165de79f895a3c6392d46e74",
+  "python": "3.13.5 | packaged by Anaconda, Inc. | (main, Jun 12 2025, 11:23:37) [Clang 14.0.6 ]",
+  "scope": "complete literalIdentityMatcher; no database/graphmutation; subclassscore/weight implementation unchanged",
+  "cases": [
+    {
+      "case": "email_exact",
+      "pass": false,
+      "errorType": "AttributeError",
+      "error": "'IdentityMatcher' object has no attribute 'compare'"
+    },
+    {
+      "case": "email_mismatch",
+      "pass": false,
+      "errorType": "AttributeError",
+      "error": "'IdentityMatcher' object has no attribute 'compare'"
+    },
+    {
+      "case": "nickname",
+      "pass": false,
+      "errorType": "AttributeError",
+      "error": "'IdentityMatcher' object has no attribute 'compare'"
+    },
+    {
+      "case": "missing",
+      "pass": true,
+      "actual": 0.0,
+      "expected": 0.0
+    },
+    {
+      "case": "empty",
+      "pass": true,
+      "actual": 0.0,
+      "expected": 0.0
+    },
+    {
+      "case": "no_rules",
+      "pass": true,
+      "actual": 0.0,
+      "expected": 0.0
+    }
+  ],
+  "passed": 3,
+  "failed": 3
+}
