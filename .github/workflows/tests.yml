@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tests-${{ github.ref }}
+  group: provenance-native-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,6 +25,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 9f28834e24bda8e6643168c6db3802dcefad9648
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -45,6 +51,11 @@ jobs:
         with:
           name: pack-lists
           path: pack-lists/
+      - name: Verify final tested source
+        run: |
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
 
   typecheck:
     runs-on: ubuntu-latest
@@ -53,12 +64,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 9f28834e24bda8e6643168c6db3802dcefad9648
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - name: Verify final tested source
+        run: |
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
 
   repo-checks:
     runs-on: ubuntu-latest
@@ -67,12 +89,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 9f28834e24bda8e6643168c6db3802dcefad9648
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run test:repo
+      - name: Verify final tested source
+        run: |
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
 
   package-tests:
     # macOS, the platform OpenRig runs on: several daemon and cli tests read macOS ps columns,
@@ -88,6 +121,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: 9f28834e24bda8e6643168c6db3802dcefad9648
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -116,6 +155,11 @@ jobs:
           test "$(command -v ps)" = "$TMPDIR/bin/ps"
           exec npm run test -w "packages/$1"
           SUITE
+      - name: Verify final tested source
+        run: |
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
 
   installed-scenario:
     runs-on: ubuntu-latest
@@ -124,6 +168,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: 9f28834e24bda8e6643168c6db3802dcefad9648
+      - name: Verify frozen source and clean index
+        run: |
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -136,4 +186,106 @@ jobs:
         with:
           name: installed-scenario-evidence
           path: dist/pr-scenarios/
+          if-no-files-found: error
+      - name: Verify final tested source
+        run: |
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
+
+  thread-provenance-proof:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: 9f28834e24bda8e6643168c6db3802dcefad9648
+      - name: Verify exact candidate source
+        run: |
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: brew install tmux
+      - run: npm ci
+      - run: npm run build
+      - name: Original cause then candidate through the real queue and gateway wire
+        run: |
+          set -euo pipefail
+          mkdir -p thread-provenance-evidence
+          file=packages/daemon/src/domain/gateway/slack/inbound.ts
+          git show 5a4e7508805a866e737b9619fdcfdd1fa52d6252:$file > "$file"
+          shasum -a 256 "$file" > thread-provenance-evidence/original-inbound.sha256
+          git diff > thread-provenance-evidence/before-source.diff
+          run_proof() {
+            suite_root=$(mktemp -d "$RUNNER_TEMP/opr-provenance.XXXXXX")
+            suite_root=$(cd "$suite_root" && pwd -P)
+            mkdir -p "$suite_root/home" "$suite_root/bin"
+            /usr/bin/install -m 0755 /bin/ps "$suite_root/bin/ps"
+            env -i HOME="$suite_root/home" PATH="$PATH" TMPDIR="$suite_root" TMUX_TMPDIR="$suite_root" \
+              CI=true TERM=xterm-256color \
+              sandbox-exec -D IPC_ROOT="$suite_root" -p '(version 1)(allow default)(deny network-outbound)(allow network-outbound (remote ip "localhost:*"))(allow network-outbound (subpath (param "IPC_ROOT")))' \
+              /bin/bash -s "$1" "$GITHUB_WORKSPACE/thread-provenance-evidence/$1.json" <<'PROOF'
+          set -euo pipefail
+          node scripts/ci-macos-process-probe.mjs
+          export PATH="$TMPDIR/bin:$PATH"
+          test "$(command -v ps)" = "$TMPDIR/bin/ps"
+          cd packages/daemon
+          exec ../../node_modules/.bin/vitest run test/slack-reply-to-thread.test.ts -t "interaction provenance:" --reporter=json --outputFile="$2"
+          PROOF
+          }
+          set +e
+          run_proof before > thread-provenance-evidence/before.log 2>&1
+          before_exit=$?
+          set -e
+          git restore --source=9f28834e24bda8e6643168c6db3802dcefad9648 -- "$file"
+          test "$before_exit" -eq 1
+          node --input-type=module - thread-provenance-evidence/before.json packages/daemon/test/slack-reply-to-thread.test.ts <<'CHECK'
+          import fs from 'node:fs';
+          const expected = new Map([
+           ["interaction provenance: a completed button answer keeps its ask's thread for the seat's follow-up", {line:301, assertion:/^AssertionError: expected \{.*\} to match object \{.*\}/s}],
+           ["interaction provenance: a reaction row keeps its resolved ask's thread for the seat's follow-up", {line:330, assertion:/^AssertionError: expected \{.*\} to match object \{.*\}/s}],
+           ["interaction provenance: a reaction still neither answers nor closes a live human gate", {line:349, assertion:/^AssertionError: expected 'root-missing .* to match \/reference-has-live-gate\//s}],
+          ]);
+          export function validateBefore(report, source) {
+           if(report.numFailedTests!==3 || report.numPassedTests!==0 || report.numPendingTests!==29 || report.numTotalTests!==32 || report.success!==false) throw Error('Unexpected report totals');
+           const assertions=report.testResults.flatMap(r=>r.assertionResults);
+           const failures=assertions.filter(a=>a.status==='failed');
+           if(failures.length!==3) throw Error('Unexpected failed assertion count');
+           const found=new Set();
+           for(const failure of failures){
+            const title=[...expected.keys()].find(t=>failure.fullName.endsWith(t));
+            if(!title||found.has(title))throw Error('Unknown or duplicate causal test');found.add(title);
+            const e=expected.get(title); const messages=failure.failureMessages.join('\n');
+            if(!e.assertion.test(messages)|| !messages.includes('slack-reply-to-thread.test.ts:'+e.line+':'))throw Error('Not the frozen causal assertion');
+            const line=source.split('\n')[e.line-1];
+            if(e.line===349 ? !line.includes('replyToFallback).toMatch(/reference-has-live-gate/)') : !line.includes('replyTo: decision.qitemId'))throw Error('Assertion source mismatch');
+            if(/timeout|Cannot find|MODULE_NOT_FOUND|ECONN|ENOENT|Unhandled|Failed to load/i.test(messages))throw Error('Environment failure');
+           }
+           return {accepted:true,causal_failures:3};
+          }
+          if(process.argv[2]) console.log(JSON.stringify(validateBefore(JSON.parse(fs.readFileSync(process.argv[2],'utf8')),fs.readFileSync(process.argv[3],'utf8'))));
+          CHECK
+          git diff --exit-code
+          git diff --cached --exit-code
+          run_proof after > thread-provenance-evidence/after.log 2>&1
+          node - <<'CHECK'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('thread-provenance-evidence/after.json'));
+          if (report.numPassedTests !== 3 || report.numFailedTests !== 0) throw Error('Expected all three candidate consumer regressions to pass');
+          CHECK
+          test "$(git rev-parse HEAD)" = "9f28834e24bda8e6643168c6db3802dcefad9648"
+          git diff --exit-code
+          git diff --cached --exit-code
+          git rev-parse HEAD HEAD^{tree} > thread-provenance-evidence/tested-source.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: thread-provenance-evidence
+          path: thread-provenance-evidence/
           if-no-files-found: error
