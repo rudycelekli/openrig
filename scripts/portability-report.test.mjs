@@ -142,3 +142,32 @@ test("keeps added header-shaped text as source content inside a hunk", () => {
     { file: "file.md", line: 2, text: "see /Users/alice/work" },
   ]);
 });
+
+
+test("native Git UTF-8 and space filenames retain exact CLI report locations", async () => {
+  const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const { execFileSync, spawnSync } = await import("node:child_process");
+  const repo = mkdtempSync(join(tmpdir(), "openrig-portability-paths-"));
+  const names = ["café.md", "ordinary name.md"];
+  try {
+    execFileSync("git", ["init", "--quiet", repo]);
+    for (const name of names) writeFileSync(join(repo, name), "see /Users/alice/project\n");
+    execFileSync("git", ["-C", repo, "add", "--", ...names]);
+    for (const quotePath of ["true", "false"]) {
+      execFileSync("git", ["-C", repo, "config", "core.quotePath", quotePath]);
+      const run = spawnSync(process.execPath, [fileURLToPath(new URL("./portability-report.mjs", import.meta.url)), "--repo", repo, "--staged", "--locations-only"], { encoding: "utf8" });
+      assert.equal(run.status, 0, run.stderr);
+      for (const name of names) assert.ok(run.stdout.includes(`- \`${name}:1\``), run.stdout);
+      assert.ok(!run.stdout.includes("\\303"), run.stdout);
+      assert.ok(!run.stdout.includes("\t"), run.stdout);
+    }
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});
+
+test("strips only Git's trailing header tab for unquoted space filenames", () => {
+  const diff = "+++ b/ordinary name.md\t\n@@ -0,0 +1 @@\n+see /Users/alice/project\n";
+  assert.deepEqual(addedLines(diff), [{ file: "ordinary name.md", line: 1, text: "see /Users/alice/project" }]);
+});
