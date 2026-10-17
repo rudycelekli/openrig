@@ -1,4 +1,4 @@
-name: Tests
+name: Tests (fixed candidate, no uploads)
 
 # Builds, type-checks and runs every test suite on a clean GitHub runner, and records the file
 # list each published package would contain. Each suite is its own job so one failure does not
@@ -6,8 +6,6 @@ name: Tests
 # Package suites deny external networking; scenario runtime has no external route.
 
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -24,11 +22,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: 32e86a9b38f6538125cece24e9c17a9d24c3ff52
+          fetch-depth: 0
           persist-credentials: false
+      - name: Assert exact reviewed source and parent history
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 32e86a9b38f6538125cece24e9c17a9d24c3ff52
+          test "$(git rev-parse 'HEAD^{tree}')" = d903e5234e7c90fce206976e3c0fca4e488da1fe
+          test "$(git rev-parse 'HEAD^')" = a2a37b165bc82e855d11df6759e6661b1070339f
+          git cat-file -e 'a2a37b165bc82e855d11df6759e6661b1070339f^{commit}'
+          git log -1 --format='%H %T %P'
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm ci
       - run: npm run build
       - name: Record the published file list of each package
@@ -41,10 +48,18 @@ jobs:
               | sort > pack-lists/$p.txt
             echo "$p: $(wc -l < pack-lists/$p.txt) files"
           done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pack-lists
-          path: pack-lists/
+      - name: Log bounded package-list receipts (no artifact upload)
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          for (const name of ['cli', 'daemon', 'tui']) {
+            const path = `pack-lists/${name}.txt`;
+            const bytes = readFileSync(path);
+            const lines = bytes.toString().trimEnd().split('\n');
+            console.log(JSON.stringify({ path, files: lines.length, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), firstPaths: lines.slice(0, 40).map((line) => line.length > 300 ? line.slice(0, 300) + '[truncated]' : line), pathsOmitted: Math.max(0, lines.length - 40) }));
+          }
+          NODE
 
   typecheck:
     runs-on: ubuntu-latest
@@ -52,11 +67,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: 32e86a9b38f6538125cece24e9c17a9d24c3ff52
+          fetch-depth: 0
           persist-credentials: false
+      - name: Assert exact reviewed source and parent history
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 32e86a9b38f6538125cece24e9c17a9d24c3ff52
+          test "$(git rev-parse 'HEAD^{tree}')" = d903e5234e7c90fce206976e3c0fca4e488da1fe
+          test "$(git rev-parse 'HEAD^')" = a2a37b165bc82e855d11df6759e6661b1070339f
+          git cat-file -e 'a2a37b165bc82e855d11df6759e6661b1070339f^{commit}'
+          git log -1 --format='%H %T %P'
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm ci
       - run: npm run lint
 
@@ -66,11 +90,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: 32e86a9b38f6538125cece24e9c17a9d24c3ff52
+          fetch-depth: 0
           persist-credentials: false
+      - name: Assert exact reviewed source and parent history
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 32e86a9b38f6538125cece24e9c17a9d24c3ff52
+          test "$(git rev-parse 'HEAD^{tree}')" = d903e5234e7c90fce206976e3c0fca4e488da1fe
+          test "$(git rev-parse 'HEAD^')" = a2a37b165bc82e855d11df6759e6661b1070339f
+          git cat-file -e 'a2a37b165bc82e855d11df6759e6661b1070339f^{commit}'
+          git log -1 --format='%H %T %P'
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm ci
       - run: npm run test:repo
 
@@ -86,12 +119,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: 32e86a9b38f6538125cece24e9c17a9d24c3ff52
           fetch-depth: 0
           persist-credentials: false
+      - name: Assert exact reviewed source and parent history
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 32e86a9b38f6538125cece24e9c17a9d24c3ff52
+          test "$(git rev-parse 'HEAD^{tree}')" = d903e5234e7c90fce206976e3c0fca4e488da1fe
+          test "$(git rev-parse 'HEAD^')" = a2a37b165bc82e855d11df6759e6661b1070339f
+          git cat-file -e 'a2a37b165bc82e855d11df6759e6661b1070339f^{commit}'
+          git log -1 --format='%H %T %P'
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: brew install tmux
       - run: npm ci
       - name: Build the packages the tests import
@@ -123,17 +164,57 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: 32e86a9b38f6538125cece24e9c17a9d24c3ff52
+          fetch-depth: 0
           persist-credentials: false
+      - name: Assert exact reviewed source and parent history
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 32e86a9b38f6538125cece24e9c17a9d24c3ff52
+          test "$(git rev-parse 'HEAD^{tree}')" = d903e5234e7c90fce206976e3c0fca4e488da1fe
+          test "$(git rev-parse 'HEAD^')" = a2a37b165bc82e855d11df6759e6661b1070339f
+          git cat-file -e 'a2a37b165bc82e855d11df6759e6661b1070339f^{commit}'
+          git log -1 --format='%H %T %P'
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm ci
       - name: Installed package, daemon restart, and seeded durability failure
         run: bash scripts/run-pr-scenarios.sh
-      - uses: actions/upload-artifact@v4
+      - name: Log bounded scenario receipt hashes (no artifact upload)
         if: always()
-        with:
-          name: installed-scenario-evidence
-          path: dist/pr-scenarios/
-          if-no-files-found: error
+        run: |
+          node --input-type=module <<'NODE'
+          import { readdirSync, statSync, readFileSync, existsSync } from 'node:fs';
+          import { join, relative } from 'node:path';
+          import { createHash } from 'node:crypto';
+          const root = 'dist/pr-scenarios';
+          if (!existsSync(root)) {
+            console.log('Scenario evidence directory absent; see the scenario step result.');
+          } else {
+            const paths = [];
+            const walk = (dir) => {
+              for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+                const path = join(dir, entry.name);
+                if (entry.isDirectory()) walk(path);
+                else if (entry.isFile()) paths.push(path);
+              }
+            };
+            walk(root);
+            let emitted = 0;
+            let hashedBytes = 0;
+            let omitted = 0;
+            const manifest = createHash('sha256');
+            for (const path of paths) {
+              const size = statSync(path).size;
+              const rel = relative(root, path);
+              manifest.update(JSON.stringify([rel, size]) + '\n');
+              if (emitted >= 160 || size > 8 * 1024 * 1024 || hashedBytes + size > 32 * 1024 * 1024 || rel.length > 500) { omitted++; continue; }
+              const sha256 = createHash('sha256').update(readFileSync(path)).digest('hex');
+              console.log(JSON.stringify({ path: rel, bytes: size, sha256 }));
+              emitted++;
+              hashedBytes += size;
+            }
+            console.log(JSON.stringify({ totalFiles: paths.length, emitted, omitted, hashedBytes, allPathSizeManifestSha256: manifest.digest('hex'), limits: '160 file lines, 500-character paths, 8MiB per file and32MiB total hashed; omitted payloads are not certified' }));
+          }
+          NODE
