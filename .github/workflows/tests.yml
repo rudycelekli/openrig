@@ -1,139 +1,664 @@
-name: Tests
-
-# Builds, type-checks and runs every test suite on a clean GitHub runner, and records the file
-# list each published package would contain. Each suite is its own job so one failure does not
-# hide the others. No provider credentials or operator configuration are supplied.
-# Package suites deny external networking; scenario runtime has no external route.
-
-on:
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
-
+name: OpenRig1415 exact source qualification
+'on':
+  workflow_dispatch: {}
 permissions:
   contents: read
-
 concurrency:
-  group: tests-${{ github.ref }}
-  cancel-in-progress: true
-
+  group: openrig1415-native-20261020
+  cancel-in-progress: false
 jobs:
   build-and-package:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - name: Record the published file list of each package
-        run: |
-          set -euo pipefail
-          mkdir -p pack-lists
-          for p in cli daemon tui; do
-            (cd packages/$p && npm pack --dry-run --json --ignore-scripts) \
-              | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const f of JSON.parse(s)[0].files)console.log(f.path)})' \
-              | sort > pack-lists/$p.txt
-            echo "$p: $(wc -l < pack-lists/$p.txt) files"
-          done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pack-lists
-          path: pack-lists/
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        repository: mvschwarz/openrig
+        ref: d93377f3f9d9728458127c7e8773484cfdd82dd6
+    - name: Apply exact reviewed source packet
+      shell: python
+      run: 'import base64,hashlib,pathlib,subprocess,json
 
+        assert subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip()==''d93377f3f9d9728458127c7e8773484cfdd82dd6''
+
+        p=base64.b64decode(''ZGlmZiAtLWdpdCBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMgYi9wYWNrYWdlcy9jbGkvc3JjL2NvbW1hbmRzL2NoYXRyb29tLnRzCmluZGV4IGFiYTI2NmJkOThkMGU4ZmU4MTVlOWZlZDEzYjZjOTdkNWJiYTdkZTAuLjJhYjc5ZWE5N2FkZGZjNTk0NjI0NzM2NDA2MTBiZWJjMWVkN2UwNGMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMKKysrIGIvcGFja2FnZXMvY2xpL3NyYy9jb21tYW5kcy9jaGF0cm9vbS50cwpAQCAtNywxMSArNywxMSBAQCBpbXBvcnQgdHlwZSB7IFN0YXR1c0RlcHMgfSBmcm9tICIuL3N0YXR1cy5qcyI7CiBpbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOwogaW1wb3J0IHsgc2hlbGxRdW90ZSB9IGZyb20gIi4uL2Nyb3NzLWhvc3QtZXhlY3V0b3IuanMiOwogCi0vKiogYXJndiBmb3IgdGhlIGRlZGljYXRlZCB0bXV4IHNlc3Npb24gdGhhdCBydW5zIGByaWcgY2hhdHJvb20gd2F0Y2hgLiB0bXV4IGhhbmRzIGl0cyBsYXN0IGFyZ3VtZW50IHRvCi0gKiAgYHNoIC1jYCwgc28gdGhlIHJpZyBuYW1lIGlzIHNpbmdsZS1xdW90ZWQ6IGEgbmFtZSB3aXRoIHNwYWNlcywgcXVvdGVzLCBgJGAgb3IgYmFja3RpY2tzIHJlYWNoZXMgdGhlCi0gKiAgd2F0Y2hlciBhcyBvbmUgbGl0ZXJhbCBhcmd1bWVudCBhbmQgaXMgbmV2ZXIgZXhwYW5kZWQgYnkgdGhlIHNoZWxsLiAqLworLyoqIGFyZ3YgZm9yIGEgZGVkaWNhdGVkIHRtdXggc2Vzc2lvbjsgbXVsdGlwbGUgY29tbWFuZCBhcmd1bWVudHMgYnlwYXNzIGl0cyBkZWZhdWx0IHNoZWxsLiAqLwogZXhwb3J0IGZ1bmN0aW9uIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWc6IHN0cmluZyk6IHN0cmluZ1tdIHsKLSAgcmV0dXJuIFsibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBgY2hhdHJvb21AJHtyaWd9YCwgYHJpZyBjaGF0cm9vbSB3YXRjaCAke3NoZWxsUXVvdGUocmlnKX1gXTsKKyAgLy8gTGl0ZXJhbC1mb3JtYXQgZXhwYW5zaW9ucyBhbHNvIHByZXNlcnZlIGhhc2hlcyBhZGphY2VudCB0byB0bXV4J3Mgc3BlY2lhbCAjWy4uLl0gc3ludGF4LgorICBjb25zdCBzZXNzaW9uTmFtZSA9IGBjaGF0cm9vbUAke3JpZ31gLnJlcGxhY2VBbGwoIiMiLCAiI3tsOiMjfSIpOworICByZXR1cm4gWyJuZXctc2Vzc2lvbiIsICItZCIsICItcyIsIHNlc3Npb25OYW1lLCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXTsKIH0KIAogaW50ZXJmYWNlIFJpZ1N1bW1hcnkgewpAQCAtMTgyLDcgKzE4Miw3IEBAIGV4cG9ydCBmdW5jdGlvbiBjaGF0cm9vbUNvbW1hbmQoZGVwc092ZXJyaWRlPzogU3RhdHVzRGVwcyk6IENvbW1hbmQgewogICAgICAgICB0cnkgewogICAgICAgICAgIGV4ZWNGaWxlU3luYygidG11eCIsIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpLCB7IHN0ZGlvOiAiaWdub3JlIiB9KTsKICAgICAgICAgICBjb25zb2xlLmxvZyhgU3RhcnRlZCB3YXRjaCBpbiB0bXV4IHNlc3Npb246ICR7c2Vzc2lvbk5hbWV9YCk7Ci0gICAgICAgICAgY29uc29sZS5sb2coYEF0dGFjaCB3aXRoOiB0bXV4IGF0dGFjaCAtdCAke3Nlc3Npb25OYW1lfWApOworICAgICAgICAgIGNvbnNvbGUubG9nKGBBdHRhY2ggd2l0aDogdG11eCBhdHRhY2ggLXQgJHtzaGVsbFF1b3RlKHNlc3Npb25OYW1lKX1gKTsKICAgICAgICAgfSBjYXRjaCB7CiAgICAgICAgICAgY29uc29sZS5lcnJvcihgRmFpbGVkIHRvIGNyZWF0ZSB0bXV4IHNlc3Npb24gJyR7c2Vzc2lvbk5hbWV9Jy4gSXQgbWF5IGFscmVhZHkgZXhpc3QuYCk7CiAgICAgICAgICAgcHJvY2Vzcy5leGl0Q29kZSA9IDE7CmRpZmYgLS1naXQgYS9wYWNrYWdlcy9jbGkvdGVzdC9jaGF0cm9vbS13YXRjaC10bXV4LWFyZ3MudGVzdC50cyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCmluZGV4IDg1YzNmY2Y0Yzc0MzIyMmUwNWRiNzEwMDg2ZThhNTJjZjIwMDQzYzYuLmM2Yzg0OGMzNGMyN2FkZTc0ZTZlY2JkZWU2OGQ3NWVjMjA4Njk2ZTMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCisrKyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCkBAIC0xLDI1ICsxLDY2IEBACiBpbXBvcnQgeyBkZXNjcmliZSwgaXQsIGV4cGVjdCB9IGZyb20gInZpdGVzdCI7Ci1pbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgZXhlY0ZpbGVTeW5jLCBzcGF3blN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgY2htb2RTeW5jLCBleGlzdHNTeW5jLCBta2R0ZW1wU3luYywgcmVhZEZpbGVTeW5jLCBybVN5bmMsIHdyaXRlRmlsZVN5bmMgfSBmcm9tICJub2RlOmZzIjsKK2ltcG9ydCB7IHRtcGRpciB9IGZyb20gIm5vZGU6b3MiOworaW1wb3J0IHsgam9pbiB9IGZyb20gIm5vZGU6cGF0aCI7CitpbXBvcnQgeyBzZXRUaW1lb3V0IGFzIGRlbGF5IH0gZnJvbSAibm9kZTp0aW1lcnMvcHJvbWlzZXMiOwogaW1wb3J0IHsgY2hhdHJvb21XYXRjaFRtdXhBcmdzIH0gZnJvbSAiLi4vc3JjL2NvbW1hbmRzL2NoYXRyb29tLmpzIjsKIAotLy8gdG11eCBydW5zIGl0cyBsYXN0IGFyZ3VtZW50IHRocm91Z2ggYHNoIC1jYC4gU3dhcCB0aGUgbGVhZGluZyBgcmlnYCBmb3IgYSBmdW5jdGlvbiB0aGF0IHByaW50cwotLy8gZWFjaCBhcmd1bWVudCBvbiBpdHMgb3duIGxpbmUgdG8gc2VlIGV4YWN0bHkgd2hhdCB0aGUgd2F0Y2hlciB3b3VsZCByZWNlaXZlLgotZnVuY3Rpb24gYXJnc1NlZW5CeVdhdGNoZXIoc2hlbGxDb21tYW5kOiBzdHJpbmcpOiBzdHJpbmdbXSB7Ci0gIGNvbnN0IHByb2JlID0gYGYoKSB7IGZvciBhIGluICIkQCI7IGRvIHByaW50ZiAnJXNcXG4nICIkYSI7IGRvbmU7IH07ICR7c2hlbGxDb21tYW5kLnJlcGxhY2UoL15yaWcgLywgImYgIil9YDsKLSAgcmV0dXJuIGV4ZWNGaWxlU3luYygic2giLCBbIi1jIiwgcHJvYmVdLCB7IGVuY29kaW5nOiAidXRmLTgiIH0pLnNwbGl0KCJcbiIpLnNsaWNlKDAsIC0xKTsKLX0KK2NvbnN0IGNhc2VzID0gWworICBbIm15LXJpZyIsICJjaGF0cm9vbUBteS1yaWciXSwKKyAgWyJteSByaWciLCAiY2hhdHJvb21AbXkgcmlnIl0sCisgIFsiaXQncyIsICJjaGF0cm9vbUBpdCdzIl0sCisgIFsnc2F5ICJoaSInLCAnY2hhdHJvb21Ac2F5ICJoaSInXSwKKyAgWyJhO2IiLCAiY2hhdHJvb21AYTtiIl0sCisgIFsiYGlkYCIsICJjaGF0cm9vbUBgaWRgIl0sCisgIFsiJChwcmludGYgc2VudGluZWwpIiwgImNoYXRyb29tQCQocHJpbnRmIHNlbnRpbmVsKSJdLAorICBbImEkSE9NRSIsICJjaGF0cm9vbUBhJEhPTUUiXSwKKyAgWyItb3B0aW9uIiwgImNoYXRyb29tQC1vcHRpb24iXSwKKyAgWyJzaW5nbGUjdGFnIiwgImNoYXRyb29tQHNpbmdsZSN7bDojI310YWciXSwKKyAgWyJkb3VibGUjI3RhZyIsICJjaGF0cm9vbUBkb3VibGUje2w6IyN9I3tsOiMjfXRhZyJdLAorICBbInN0eWxlI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfVtmZz1yZWRddGFnIl0sCisgIFsic3R5bGUjI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfSN7bDojI31bZmc9cmVkXXRhZyJdLAorICBbImZvcm1hdCN7cGlkfSIsICJjaGF0cm9vbUBmb3JtYXQje2w6IyN9e3BpZH0iXSwKK10gYXMgY29uc3Q7CiAKIGRlc2NyaWJlKCJjaGF0cm9vbSB3YXRjaCAtLXRtdXggY29tbWFuZCIsICgpID0+IHsKLSAgaXQoImtlZXBzIGEgcGxhaW4gcmlnIG5hbWUgYXMgdGhlIHNlc3Npb24gc3VmZml4IGFuZCB0aGUgd2F0Y2hlciBhcmd1bWVudCIsICgpID0+IHsKLSAgICBjb25zdCBhcmdzID0gY2hhdHJvb21XYXRjaFRtdXhBcmdzKCJteS1yaWciKTsKLSAgICBleHBlY3QoYXJncy5zbGljZSgwLCA0KSkudG9FcXVhbChbIm5ldy1zZXNzaW9uIiwgIi1kIiwgIi1zIiwgImNoYXRyb29tQG15LXJpZyJdKTsKLSAgICBleHBlY3QoYXJnc1NlZW5CeVdhdGNoZXIoYXJnc1s0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCAibXktcmlnIl0pOworICBpdC5lYWNoKGNhc2VzKSgicGFzc2VzICVqIGFzIHNlcGFyYXRlLCBsaXRlcmFsIHdhdGNoZXIgYXJndW1lbnRzIiwgKHJpZywgc2Vzc2lvbkZvcm1hdCkgPT4geworICAgIGV4cGVjdChjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKSkudG9FcXVhbChbCisgICAgICAibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBzZXNzaW9uRm9ybWF0LCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnLAorICAgIF0pOwogICB9KTsKK30pOworCitjb25zdCBoYXNUbXV4ID0gcHJvY2Vzcy5wbGF0Zm9ybSAhPT0gIndpbjMyIiAmJiBzcGF3blN5bmMoInRtdXgiLCBbIi1WIl0pLnN0YXR1cyA9PT0gMDsKIAotICBpdC5lYWNoKFsibXkgcmlnIiwgIml0J3MiLCAnc2F5ICJoaSInLCAiJCh0b3VjaCAvdG1wL29wZW5yaWctcHduZWQpIiwgImBpZGAiLCAiYTtiIiwgImEkSE9NRSJdKSgKLSAgICAiZGVsaXZlcnMgJWogdG8gdGhlIHdhdGNoZXIgYXMgb25lIGxpdGVyYWwgYXJndW1lbnQiLAotICAgIChyaWcpID0+IHsKLSAgICAgIGV4cGVjdChhcmdzU2VlbkJ5V2F0Y2hlcihjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKVs0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCByaWddKTsKLSAgICB9LAotICApOworZGVzY3JpYmUuc2tpcElmKCFoYXNUbXV4KSgiY2hhdHJvb20gd2F0Y2ggbmF0aXZlIHRtdXgiLCAoKSA9PiB7CisgIGl0LmVhY2goY2FzZXMpKCJwcmVzZXJ2ZXMgJWogaW4gdGhlIHNlc3Npb24gbmFtZSBhbmQgbGF1bmNoZWQgYXJndiIsIGFzeW5jIChyaWcpID0+IHsKKyAgICBjb25zdCBkaXIgPSBta2R0ZW1wU3luYyhqb2luKHRtcGRpcigpLCAib3QtIikpOworICAgIGNvbnN0IHNvY2tldCA9IGpvaW4oZGlyLCAicyIpOworICAgIGNvbnN0IG91dHB1dCA9IGpvaW4oZGlyLCAiYXJncy5qc29uIik7CisgICAgY29uc3QgcHJvYmUgPSBqb2luKGRpciwgInByb2JlLmNqcyIpOworICAgIGNvbnN0IGV4ZWN1dGFibGUgPSBqb2luKGRpciwgInJpZyIpOworICAgIHdyaXRlRmlsZVN5bmMocHJvYmUsIGByZXF1aXJlKCJub2RlOmZzIikud3JpdGVGaWxlU3luYyhwcm9jZXNzLmVudi5PUEVOUklHX1RNVVhfVEVTVF9PVVRQVVQsIEpTT04uc3RyaW5naWZ5KHByb2Nlc3MuYXJndi5zbGljZSgyKSkpOyBzZXRJbnRlcnZhbCgoKSA9PiB7fSwgMTAwMCk7YCk7CisgICAgd3JpdGVGaWxlU3luYyhleGVjdXRhYmxlLCAnIyEvYmluL3NoXG5leGVjICIkT1BFTlJJR19UTVVYX1RFU1RfTk9ERSIgIiRPUEVOUklHX1RNVVhfVEVTVF9QUk9CRSIgIiRAIlxuJyk7CisgICAgY2htb2RTeW5jKGV4ZWN1dGFibGUsIDBvNzU1KTsKKyAgICB0cnkgeworICAgICAgZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgIi1mIiwgIi9kZXYvbnVsbCIsIC4uLmNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpXSwgeworICAgICAgICBlbnY6IHsKKyAgICAgICAgICAuLi5wcm9jZXNzLmVudiwKKyAgICAgICAgICBUTVVYOiAiIiwKKyAgICAgICAgICBQQVRIOiBgJHtkaXJ9OiR7cHJvY2Vzcy5lbnYuUEFUSCA/PyAiIn1gLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX05PREU6IHByb2Nlc3MuZXhlY1BhdGgsCisgICAgICAgICAgT1BFTlJJR19UTVVYX1RFU1RfUFJPQkU6IHByb2JlLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX09VVFBVVDogb3V0cHV0LAorICAgICAgICB9LAorICAgICAgfSk7CisgICAgICBmb3IgKGxldCBhdHRlbXB0ID0gMDsgYXR0ZW1wdCA8IDEwMCAmJiAhZXhpc3RzU3luYyhvdXRwdXQpOyBhdHRlbXB0KyspIGF3YWl0IGRlbGF5KDIwKTsKKyAgICAgIGV4cGVjdChleGlzdHNTeW5jKG91dHB1dCkpLnRvQmUodHJ1ZSk7CisgICAgICBleHBlY3QoZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgImxpc3Qtc2Vzc2lvbnMiLCAiLUYiLCAiI3tzZXNzaW9uX25hbWV9Il0sIHsgZW5jb2Rpbmc6ICJ1dGYtOCIgfSkudHJpbUVuZCgpKS50b0JlKGBjaGF0cm9vbUAke3JpZ31gKTsKKyAgICAgIGV4cGVjdChKU09OLnBhcnNlKHJlYWRGaWxlU3luYyhvdXRwdXQsICJ1dGYtOCIpKSkudG9FcXVhbChbImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXSk7CisgICAgfSBmaW5hbGx5IHsKKyAgICAgIHNwYXduU3luYygidG11eCIsIFsiLVMiLCBzb2NrZXQsICJraWxsLXNlcnZlciJdKTsKKyAgICAgIHJtU3luYyhkaXIsIHsgcmVjdXJzaXZlOiB0cnVlLCBmb3JjZTogdHJ1ZSB9KTsKKyAgICB9CisgIH0pOwogfSk7Cg=='');
+        assert hashlib.sha256(p).hexdigest()==''95a45a13d1cb66595b085e92992c3de36931a74961bd6bf3f12f27492602a6b8''
+
+        subprocess.run([''git'',''apply'',''--check'',''-''],input=p,check=True)
+
+        subprocess.run([''git'',''apply'',''-''],input=p,check=True)
+
+        pathlib.Path(''/tmp/openrig1415-expected.patch'').write_bytes(p)
+
+        pathlib.Path(''/tmp/openrig1415-files.json'').write_text(''{"packages/cli/src/commands/chatroom.ts": {"baseline_sha256": "a663d18fa0f5a8446e5b4ae49419c10fa8f38e286584ed3867558b07cd62b1c6",
+        "candidate_sha256": "2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom.ts"},
+        "packages/cli/test/chatroom-watch-tmux-args.test.ts": {"baseline_sha256": "e8fbdd008f59438eba68965f7c1d87cb9b68a5401d609472bed58aa6a0a2427d",
+        "candidate_sha256": "f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom-watch-tmux-args.test.ts"}}'')
+
+        '
+    - name: Strict candidate identity before native gates
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      env:
+        QUAL_PHASE: before
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: npm
+    - run: npm ci
+    - run: npm run build
+    - name: Record the published file list of each package
+      run: "set -euo pipefail\nmkdir -p pack-lists\nfor p in cli daemon tui; do\n  (cd packages/$p && npm pack --dry-run --json --ignore-scripts)\
+        \ \\\n    | node -e 'let s=\"\";process.stdin.on(\"data\",d=>s+=d).on(\"end\",()=>{for(const f of JSON.parse(s)[0].files)console.log(f.path)})'\
+        \ \\\n    | sort > pack-lists/$p.txt\n  echo \"$p: $(wc -l < pack-lists/$p.txt) files\"\ndone\n"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: pack-lists
+        path: pack-lists/
+    - name: Strict candidate identity after native gates
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      if: always()
+      env:
+        QUAL_PHASE: after
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: openrig1415-source-build-and-package-${{ matrix.package }}-${{ github.run_id }}
+        path: ${{ runner.temp }}/source-identity-*.json
+        if-no-files-found: error
   typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        repository: mvschwarz/openrig
+        ref: d93377f3f9d9728458127c7e8773484cfdd82dd6
+    - name: Apply exact reviewed source packet
+      shell: python
+      run: 'import base64,hashlib,pathlib,subprocess,json
 
+        assert subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip()==''d93377f3f9d9728458127c7e8773484cfdd82dd6''
+
+        p=base64.b64decode(''ZGlmZiAtLWdpdCBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMgYi9wYWNrYWdlcy9jbGkvc3JjL2NvbW1hbmRzL2NoYXRyb29tLnRzCmluZGV4IGFiYTI2NmJkOThkMGU4ZmU4MTVlOWZlZDEzYjZjOTdkNWJiYTdkZTAuLjJhYjc5ZWE5N2FkZGZjNTk0NjI0NzM2NDA2MTBiZWJjMWVkN2UwNGMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMKKysrIGIvcGFja2FnZXMvY2xpL3NyYy9jb21tYW5kcy9jaGF0cm9vbS50cwpAQCAtNywxMSArNywxMSBAQCBpbXBvcnQgdHlwZSB7IFN0YXR1c0RlcHMgfSBmcm9tICIuL3N0YXR1cy5qcyI7CiBpbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOwogaW1wb3J0IHsgc2hlbGxRdW90ZSB9IGZyb20gIi4uL2Nyb3NzLWhvc3QtZXhlY3V0b3IuanMiOwogCi0vKiogYXJndiBmb3IgdGhlIGRlZGljYXRlZCB0bXV4IHNlc3Npb24gdGhhdCBydW5zIGByaWcgY2hhdHJvb20gd2F0Y2hgLiB0bXV4IGhhbmRzIGl0cyBsYXN0IGFyZ3VtZW50IHRvCi0gKiAgYHNoIC1jYCwgc28gdGhlIHJpZyBuYW1lIGlzIHNpbmdsZS1xdW90ZWQ6IGEgbmFtZSB3aXRoIHNwYWNlcywgcXVvdGVzLCBgJGAgb3IgYmFja3RpY2tzIHJlYWNoZXMgdGhlCi0gKiAgd2F0Y2hlciBhcyBvbmUgbGl0ZXJhbCBhcmd1bWVudCBhbmQgaXMgbmV2ZXIgZXhwYW5kZWQgYnkgdGhlIHNoZWxsLiAqLworLyoqIGFyZ3YgZm9yIGEgZGVkaWNhdGVkIHRtdXggc2Vzc2lvbjsgbXVsdGlwbGUgY29tbWFuZCBhcmd1bWVudHMgYnlwYXNzIGl0cyBkZWZhdWx0IHNoZWxsLiAqLwogZXhwb3J0IGZ1bmN0aW9uIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWc6IHN0cmluZyk6IHN0cmluZ1tdIHsKLSAgcmV0dXJuIFsibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBgY2hhdHJvb21AJHtyaWd9YCwgYHJpZyBjaGF0cm9vbSB3YXRjaCAke3NoZWxsUXVvdGUocmlnKX1gXTsKKyAgLy8gTGl0ZXJhbC1mb3JtYXQgZXhwYW5zaW9ucyBhbHNvIHByZXNlcnZlIGhhc2hlcyBhZGphY2VudCB0byB0bXV4J3Mgc3BlY2lhbCAjWy4uLl0gc3ludGF4LgorICBjb25zdCBzZXNzaW9uTmFtZSA9IGBjaGF0cm9vbUAke3JpZ31gLnJlcGxhY2VBbGwoIiMiLCAiI3tsOiMjfSIpOworICByZXR1cm4gWyJuZXctc2Vzc2lvbiIsICItZCIsICItcyIsIHNlc3Npb25OYW1lLCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXTsKIH0KIAogaW50ZXJmYWNlIFJpZ1N1bW1hcnkgewpAQCAtMTgyLDcgKzE4Miw3IEBAIGV4cG9ydCBmdW5jdGlvbiBjaGF0cm9vbUNvbW1hbmQoZGVwc092ZXJyaWRlPzogU3RhdHVzRGVwcyk6IENvbW1hbmQgewogICAgICAgICB0cnkgewogICAgICAgICAgIGV4ZWNGaWxlU3luYygidG11eCIsIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpLCB7IHN0ZGlvOiAiaWdub3JlIiB9KTsKICAgICAgICAgICBjb25zb2xlLmxvZyhgU3RhcnRlZCB3YXRjaCBpbiB0bXV4IHNlc3Npb246ICR7c2Vzc2lvbk5hbWV9YCk7Ci0gICAgICAgICAgY29uc29sZS5sb2coYEF0dGFjaCB3aXRoOiB0bXV4IGF0dGFjaCAtdCAke3Nlc3Npb25OYW1lfWApOworICAgICAgICAgIGNvbnNvbGUubG9nKGBBdHRhY2ggd2l0aDogdG11eCBhdHRhY2ggLXQgJHtzaGVsbFF1b3RlKHNlc3Npb25OYW1lKX1gKTsKICAgICAgICAgfSBjYXRjaCB7CiAgICAgICAgICAgY29uc29sZS5lcnJvcihgRmFpbGVkIHRvIGNyZWF0ZSB0bXV4IHNlc3Npb24gJyR7c2Vzc2lvbk5hbWV9Jy4gSXQgbWF5IGFscmVhZHkgZXhpc3QuYCk7CiAgICAgICAgICAgcHJvY2Vzcy5leGl0Q29kZSA9IDE7CmRpZmYgLS1naXQgYS9wYWNrYWdlcy9jbGkvdGVzdC9jaGF0cm9vbS13YXRjaC10bXV4LWFyZ3MudGVzdC50cyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCmluZGV4IDg1YzNmY2Y0Yzc0MzIyMmUwNWRiNzEwMDg2ZThhNTJjZjIwMDQzYzYuLmM2Yzg0OGMzNGMyN2FkZTc0ZTZlY2JkZWU2OGQ3NWVjMjA4Njk2ZTMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCisrKyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCkBAIC0xLDI1ICsxLDY2IEBACiBpbXBvcnQgeyBkZXNjcmliZSwgaXQsIGV4cGVjdCB9IGZyb20gInZpdGVzdCI7Ci1pbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgZXhlY0ZpbGVTeW5jLCBzcGF3blN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgY2htb2RTeW5jLCBleGlzdHNTeW5jLCBta2R0ZW1wU3luYywgcmVhZEZpbGVTeW5jLCBybVN5bmMsIHdyaXRlRmlsZVN5bmMgfSBmcm9tICJub2RlOmZzIjsKK2ltcG9ydCB7IHRtcGRpciB9IGZyb20gIm5vZGU6b3MiOworaW1wb3J0IHsgam9pbiB9IGZyb20gIm5vZGU6cGF0aCI7CitpbXBvcnQgeyBzZXRUaW1lb3V0IGFzIGRlbGF5IH0gZnJvbSAibm9kZTp0aW1lcnMvcHJvbWlzZXMiOwogaW1wb3J0IHsgY2hhdHJvb21XYXRjaFRtdXhBcmdzIH0gZnJvbSAiLi4vc3JjL2NvbW1hbmRzL2NoYXRyb29tLmpzIjsKIAotLy8gdG11eCBydW5zIGl0cyBsYXN0IGFyZ3VtZW50IHRocm91Z2ggYHNoIC1jYC4gU3dhcCB0aGUgbGVhZGluZyBgcmlnYCBmb3IgYSBmdW5jdGlvbiB0aGF0IHByaW50cwotLy8gZWFjaCBhcmd1bWVudCBvbiBpdHMgb3duIGxpbmUgdG8gc2VlIGV4YWN0bHkgd2hhdCB0aGUgd2F0Y2hlciB3b3VsZCByZWNlaXZlLgotZnVuY3Rpb24gYXJnc1NlZW5CeVdhdGNoZXIoc2hlbGxDb21tYW5kOiBzdHJpbmcpOiBzdHJpbmdbXSB7Ci0gIGNvbnN0IHByb2JlID0gYGYoKSB7IGZvciBhIGluICIkQCI7IGRvIHByaW50ZiAnJXNcXG4nICIkYSI7IGRvbmU7IH07ICR7c2hlbGxDb21tYW5kLnJlcGxhY2UoL15yaWcgLywgImYgIil9YDsKLSAgcmV0dXJuIGV4ZWNGaWxlU3luYygic2giLCBbIi1jIiwgcHJvYmVdLCB7IGVuY29kaW5nOiAidXRmLTgiIH0pLnNwbGl0KCJcbiIpLnNsaWNlKDAsIC0xKTsKLX0KK2NvbnN0IGNhc2VzID0gWworICBbIm15LXJpZyIsICJjaGF0cm9vbUBteS1yaWciXSwKKyAgWyJteSByaWciLCAiY2hhdHJvb21AbXkgcmlnIl0sCisgIFsiaXQncyIsICJjaGF0cm9vbUBpdCdzIl0sCisgIFsnc2F5ICJoaSInLCAnY2hhdHJvb21Ac2F5ICJoaSInXSwKKyAgWyJhO2IiLCAiY2hhdHJvb21AYTtiIl0sCisgIFsiYGlkYCIsICJjaGF0cm9vbUBgaWRgIl0sCisgIFsiJChwcmludGYgc2VudGluZWwpIiwgImNoYXRyb29tQCQocHJpbnRmIHNlbnRpbmVsKSJdLAorICBbImEkSE9NRSIsICJjaGF0cm9vbUBhJEhPTUUiXSwKKyAgWyItb3B0aW9uIiwgImNoYXRyb29tQC1vcHRpb24iXSwKKyAgWyJzaW5nbGUjdGFnIiwgImNoYXRyb29tQHNpbmdsZSN7bDojI310YWciXSwKKyAgWyJkb3VibGUjI3RhZyIsICJjaGF0cm9vbUBkb3VibGUje2w6IyN9I3tsOiMjfXRhZyJdLAorICBbInN0eWxlI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfVtmZz1yZWRddGFnIl0sCisgIFsic3R5bGUjI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfSN7bDojI31bZmc9cmVkXXRhZyJdLAorICBbImZvcm1hdCN7cGlkfSIsICJjaGF0cm9vbUBmb3JtYXQje2w6IyN9e3BpZH0iXSwKK10gYXMgY29uc3Q7CiAKIGRlc2NyaWJlKCJjaGF0cm9vbSB3YXRjaCAtLXRtdXggY29tbWFuZCIsICgpID0+IHsKLSAgaXQoImtlZXBzIGEgcGxhaW4gcmlnIG5hbWUgYXMgdGhlIHNlc3Npb24gc3VmZml4IGFuZCB0aGUgd2F0Y2hlciBhcmd1bWVudCIsICgpID0+IHsKLSAgICBjb25zdCBhcmdzID0gY2hhdHJvb21XYXRjaFRtdXhBcmdzKCJteS1yaWciKTsKLSAgICBleHBlY3QoYXJncy5zbGljZSgwLCA0KSkudG9FcXVhbChbIm5ldy1zZXNzaW9uIiwgIi1kIiwgIi1zIiwgImNoYXRyb29tQG15LXJpZyJdKTsKLSAgICBleHBlY3QoYXJnc1NlZW5CeVdhdGNoZXIoYXJnc1s0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCAibXktcmlnIl0pOworICBpdC5lYWNoKGNhc2VzKSgicGFzc2VzICVqIGFzIHNlcGFyYXRlLCBsaXRlcmFsIHdhdGNoZXIgYXJndW1lbnRzIiwgKHJpZywgc2Vzc2lvbkZvcm1hdCkgPT4geworICAgIGV4cGVjdChjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKSkudG9FcXVhbChbCisgICAgICAibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBzZXNzaW9uRm9ybWF0LCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnLAorICAgIF0pOwogICB9KTsKK30pOworCitjb25zdCBoYXNUbXV4ID0gcHJvY2Vzcy5wbGF0Zm9ybSAhPT0gIndpbjMyIiAmJiBzcGF3blN5bmMoInRtdXgiLCBbIi1WIl0pLnN0YXR1cyA9PT0gMDsKIAotICBpdC5lYWNoKFsibXkgcmlnIiwgIml0J3MiLCAnc2F5ICJoaSInLCAiJCh0b3VjaCAvdG1wL29wZW5yaWctcHduZWQpIiwgImBpZGAiLCAiYTtiIiwgImEkSE9NRSJdKSgKLSAgICAiZGVsaXZlcnMgJWogdG8gdGhlIHdhdGNoZXIgYXMgb25lIGxpdGVyYWwgYXJndW1lbnQiLAotICAgIChyaWcpID0+IHsKLSAgICAgIGV4cGVjdChhcmdzU2VlbkJ5V2F0Y2hlcihjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKVs0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCByaWddKTsKLSAgICB9LAotICApOworZGVzY3JpYmUuc2tpcElmKCFoYXNUbXV4KSgiY2hhdHJvb20gd2F0Y2ggbmF0aXZlIHRtdXgiLCAoKSA9PiB7CisgIGl0LmVhY2goY2FzZXMpKCJwcmVzZXJ2ZXMgJWogaW4gdGhlIHNlc3Npb24gbmFtZSBhbmQgbGF1bmNoZWQgYXJndiIsIGFzeW5jIChyaWcpID0+IHsKKyAgICBjb25zdCBkaXIgPSBta2R0ZW1wU3luYyhqb2luKHRtcGRpcigpLCAib3QtIikpOworICAgIGNvbnN0IHNvY2tldCA9IGpvaW4oZGlyLCAicyIpOworICAgIGNvbnN0IG91dHB1dCA9IGpvaW4oZGlyLCAiYXJncy5qc29uIik7CisgICAgY29uc3QgcHJvYmUgPSBqb2luKGRpciwgInByb2JlLmNqcyIpOworICAgIGNvbnN0IGV4ZWN1dGFibGUgPSBqb2luKGRpciwgInJpZyIpOworICAgIHdyaXRlRmlsZVN5bmMocHJvYmUsIGByZXF1aXJlKCJub2RlOmZzIikud3JpdGVGaWxlU3luYyhwcm9jZXNzLmVudi5PUEVOUklHX1RNVVhfVEVTVF9PVVRQVVQsIEpTT04uc3RyaW5naWZ5KHByb2Nlc3MuYXJndi5zbGljZSgyKSkpOyBzZXRJbnRlcnZhbCgoKSA9PiB7fSwgMTAwMCk7YCk7CisgICAgd3JpdGVGaWxlU3luYyhleGVjdXRhYmxlLCAnIyEvYmluL3NoXG5leGVjICIkT1BFTlJJR19UTVVYX1RFU1RfTk9ERSIgIiRPUEVOUklHX1RNVVhfVEVTVF9QUk9CRSIgIiRAIlxuJyk7CisgICAgY2htb2RTeW5jKGV4ZWN1dGFibGUsIDBvNzU1KTsKKyAgICB0cnkgeworICAgICAgZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgIi1mIiwgIi9kZXYvbnVsbCIsIC4uLmNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpXSwgeworICAgICAgICBlbnY6IHsKKyAgICAgICAgICAuLi5wcm9jZXNzLmVudiwKKyAgICAgICAgICBUTVVYOiAiIiwKKyAgICAgICAgICBQQVRIOiBgJHtkaXJ9OiR7cHJvY2Vzcy5lbnYuUEFUSCA/PyAiIn1gLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX05PREU6IHByb2Nlc3MuZXhlY1BhdGgsCisgICAgICAgICAgT1BFTlJJR19UTVVYX1RFU1RfUFJPQkU6IHByb2JlLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX09VVFBVVDogb3V0cHV0LAorICAgICAgICB9LAorICAgICAgfSk7CisgICAgICBmb3IgKGxldCBhdHRlbXB0ID0gMDsgYXR0ZW1wdCA8IDEwMCAmJiAhZXhpc3RzU3luYyhvdXRwdXQpOyBhdHRlbXB0KyspIGF3YWl0IGRlbGF5KDIwKTsKKyAgICAgIGV4cGVjdChleGlzdHNTeW5jKG91dHB1dCkpLnRvQmUodHJ1ZSk7CisgICAgICBleHBlY3QoZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgImxpc3Qtc2Vzc2lvbnMiLCAiLUYiLCAiI3tzZXNzaW9uX25hbWV9Il0sIHsgZW5jb2Rpbmc6ICJ1dGYtOCIgfSkudHJpbUVuZCgpKS50b0JlKGBjaGF0cm9vbUAke3JpZ31gKTsKKyAgICAgIGV4cGVjdChKU09OLnBhcnNlKHJlYWRGaWxlU3luYyhvdXRwdXQsICJ1dGYtOCIpKSkudG9FcXVhbChbImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXSk7CisgICAgfSBmaW5hbGx5IHsKKyAgICAgIHNwYXduU3luYygidG11eCIsIFsiLVMiLCBzb2NrZXQsICJraWxsLXNlcnZlciJdKTsKKyAgICAgIHJtU3luYyhkaXIsIHsgcmVjdXJzaXZlOiB0cnVlLCBmb3JjZTogdHJ1ZSB9KTsKKyAgICB9CisgIH0pOwogfSk7Cg=='');
+        assert hashlib.sha256(p).hexdigest()==''95a45a13d1cb66595b085e92992c3de36931a74961bd6bf3f12f27492602a6b8''
+
+        subprocess.run([''git'',''apply'',''--check'',''-''],input=p,check=True)
+
+        subprocess.run([''git'',''apply'',''-''],input=p,check=True)
+
+        pathlib.Path(''/tmp/openrig1415-expected.patch'').write_bytes(p)
+
+        pathlib.Path(''/tmp/openrig1415-files.json'').write_text(''{"packages/cli/src/commands/chatroom.ts": {"baseline_sha256": "a663d18fa0f5a8446e5b4ae49419c10fa8f38e286584ed3867558b07cd62b1c6",
+        "candidate_sha256": "2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom.ts"},
+        "packages/cli/test/chatroom-watch-tmux-args.test.ts": {"baseline_sha256": "e8fbdd008f59438eba68965f7c1d87cb9b68a5401d609472bed58aa6a0a2427d",
+        "candidate_sha256": "f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom-watch-tmux-args.test.ts"}}'')
+
+        '
+    - name: Strict candidate identity before native gates
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      env:
+        QUAL_PHASE: before
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: npm
+    - run: npm ci
+    - run: npm run lint
+    - name: Strict candidate identity after native gates
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      if: always()
+      env:
+        QUAL_PHASE: after
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: openrig1415-source-typecheck-${{ matrix.package }}-${{ github.run_id }}
+        path: ${{ runner.temp }}/source-identity-*.json
+        if-no-files-found: error
   repo-checks:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run test:repo
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        repository: mvschwarz/openrig
+        ref: d93377f3f9d9728458127c7e8773484cfdd82dd6
+    - name: Apply exact reviewed source packet
+      shell: python
+      run: 'import base64,hashlib,pathlib,subprocess,json
 
+        assert subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip()==''d93377f3f9d9728458127c7e8773484cfdd82dd6''
+
+        p=base64.b64decode(''ZGlmZiAtLWdpdCBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMgYi9wYWNrYWdlcy9jbGkvc3JjL2NvbW1hbmRzL2NoYXRyb29tLnRzCmluZGV4IGFiYTI2NmJkOThkMGU4ZmU4MTVlOWZlZDEzYjZjOTdkNWJiYTdkZTAuLjJhYjc5ZWE5N2FkZGZjNTk0NjI0NzM2NDA2MTBiZWJjMWVkN2UwNGMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMKKysrIGIvcGFja2FnZXMvY2xpL3NyYy9jb21tYW5kcy9jaGF0cm9vbS50cwpAQCAtNywxMSArNywxMSBAQCBpbXBvcnQgdHlwZSB7IFN0YXR1c0RlcHMgfSBmcm9tICIuL3N0YXR1cy5qcyI7CiBpbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOwogaW1wb3J0IHsgc2hlbGxRdW90ZSB9IGZyb20gIi4uL2Nyb3NzLWhvc3QtZXhlY3V0b3IuanMiOwogCi0vKiogYXJndiBmb3IgdGhlIGRlZGljYXRlZCB0bXV4IHNlc3Npb24gdGhhdCBydW5zIGByaWcgY2hhdHJvb20gd2F0Y2hgLiB0bXV4IGhhbmRzIGl0cyBsYXN0IGFyZ3VtZW50IHRvCi0gKiAgYHNoIC1jYCwgc28gdGhlIHJpZyBuYW1lIGlzIHNpbmdsZS1xdW90ZWQ6IGEgbmFtZSB3aXRoIHNwYWNlcywgcXVvdGVzLCBgJGAgb3IgYmFja3RpY2tzIHJlYWNoZXMgdGhlCi0gKiAgd2F0Y2hlciBhcyBvbmUgbGl0ZXJhbCBhcmd1bWVudCBhbmQgaXMgbmV2ZXIgZXhwYW5kZWQgYnkgdGhlIHNoZWxsLiAqLworLyoqIGFyZ3YgZm9yIGEgZGVkaWNhdGVkIHRtdXggc2Vzc2lvbjsgbXVsdGlwbGUgY29tbWFuZCBhcmd1bWVudHMgYnlwYXNzIGl0cyBkZWZhdWx0IHNoZWxsLiAqLwogZXhwb3J0IGZ1bmN0aW9uIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWc6IHN0cmluZyk6IHN0cmluZ1tdIHsKLSAgcmV0dXJuIFsibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBgY2hhdHJvb21AJHtyaWd9YCwgYHJpZyBjaGF0cm9vbSB3YXRjaCAke3NoZWxsUXVvdGUocmlnKX1gXTsKKyAgLy8gTGl0ZXJhbC1mb3JtYXQgZXhwYW5zaW9ucyBhbHNvIHByZXNlcnZlIGhhc2hlcyBhZGphY2VudCB0byB0bXV4J3Mgc3BlY2lhbCAjWy4uLl0gc3ludGF4LgorICBjb25zdCBzZXNzaW9uTmFtZSA9IGBjaGF0cm9vbUAke3JpZ31gLnJlcGxhY2VBbGwoIiMiLCAiI3tsOiMjfSIpOworICByZXR1cm4gWyJuZXctc2Vzc2lvbiIsICItZCIsICItcyIsIHNlc3Npb25OYW1lLCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXTsKIH0KIAogaW50ZXJmYWNlIFJpZ1N1bW1hcnkgewpAQCAtMTgyLDcgKzE4Miw3IEBAIGV4cG9ydCBmdW5jdGlvbiBjaGF0cm9vbUNvbW1hbmQoZGVwc092ZXJyaWRlPzogU3RhdHVzRGVwcyk6IENvbW1hbmQgewogICAgICAgICB0cnkgewogICAgICAgICAgIGV4ZWNGaWxlU3luYygidG11eCIsIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpLCB7IHN0ZGlvOiAiaWdub3JlIiB9KTsKICAgICAgICAgICBjb25zb2xlLmxvZyhgU3RhcnRlZCB3YXRjaCBpbiB0bXV4IHNlc3Npb246ICR7c2Vzc2lvbk5hbWV9YCk7Ci0gICAgICAgICAgY29uc29sZS5sb2coYEF0dGFjaCB3aXRoOiB0bXV4IGF0dGFjaCAtdCAke3Nlc3Npb25OYW1lfWApOworICAgICAgICAgIGNvbnNvbGUubG9nKGBBdHRhY2ggd2l0aDogdG11eCBhdHRhY2ggLXQgJHtzaGVsbFF1b3RlKHNlc3Npb25OYW1lKX1gKTsKICAgICAgICAgfSBjYXRjaCB7CiAgICAgICAgICAgY29uc29sZS5lcnJvcihgRmFpbGVkIHRvIGNyZWF0ZSB0bXV4IHNlc3Npb24gJyR7c2Vzc2lvbk5hbWV9Jy4gSXQgbWF5IGFscmVhZHkgZXhpc3QuYCk7CiAgICAgICAgICAgcHJvY2Vzcy5leGl0Q29kZSA9IDE7CmRpZmYgLS1naXQgYS9wYWNrYWdlcy9jbGkvdGVzdC9jaGF0cm9vbS13YXRjaC10bXV4LWFyZ3MudGVzdC50cyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCmluZGV4IDg1YzNmY2Y0Yzc0MzIyMmUwNWRiNzEwMDg2ZThhNTJjZjIwMDQzYzYuLmM2Yzg0OGMzNGMyN2FkZTc0ZTZlY2JkZWU2OGQ3NWVjMjA4Njk2ZTMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCisrKyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCkBAIC0xLDI1ICsxLDY2IEBACiBpbXBvcnQgeyBkZXNjcmliZSwgaXQsIGV4cGVjdCB9IGZyb20gInZpdGVzdCI7Ci1pbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgZXhlY0ZpbGVTeW5jLCBzcGF3blN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgY2htb2RTeW5jLCBleGlzdHNTeW5jLCBta2R0ZW1wU3luYywgcmVhZEZpbGVTeW5jLCBybVN5bmMsIHdyaXRlRmlsZVN5bmMgfSBmcm9tICJub2RlOmZzIjsKK2ltcG9ydCB7IHRtcGRpciB9IGZyb20gIm5vZGU6b3MiOworaW1wb3J0IHsgam9pbiB9IGZyb20gIm5vZGU6cGF0aCI7CitpbXBvcnQgeyBzZXRUaW1lb3V0IGFzIGRlbGF5IH0gZnJvbSAibm9kZTp0aW1lcnMvcHJvbWlzZXMiOwogaW1wb3J0IHsgY2hhdHJvb21XYXRjaFRtdXhBcmdzIH0gZnJvbSAiLi4vc3JjL2NvbW1hbmRzL2NoYXRyb29tLmpzIjsKIAotLy8gdG11eCBydW5zIGl0cyBsYXN0IGFyZ3VtZW50IHRocm91Z2ggYHNoIC1jYC4gU3dhcCB0aGUgbGVhZGluZyBgcmlnYCBmb3IgYSBmdW5jdGlvbiB0aGF0IHByaW50cwotLy8gZWFjaCBhcmd1bWVudCBvbiBpdHMgb3duIGxpbmUgdG8gc2VlIGV4YWN0bHkgd2hhdCB0aGUgd2F0Y2hlciB3b3VsZCByZWNlaXZlLgotZnVuY3Rpb24gYXJnc1NlZW5CeVdhdGNoZXIoc2hlbGxDb21tYW5kOiBzdHJpbmcpOiBzdHJpbmdbXSB7Ci0gIGNvbnN0IHByb2JlID0gYGYoKSB7IGZvciBhIGluICIkQCI7IGRvIHByaW50ZiAnJXNcXG4nICIkYSI7IGRvbmU7IH07ICR7c2hlbGxDb21tYW5kLnJlcGxhY2UoL15yaWcgLywgImYgIil9YDsKLSAgcmV0dXJuIGV4ZWNGaWxlU3luYygic2giLCBbIi1jIiwgcHJvYmVdLCB7IGVuY29kaW5nOiAidXRmLTgiIH0pLnNwbGl0KCJcbiIpLnNsaWNlKDAsIC0xKTsKLX0KK2NvbnN0IGNhc2VzID0gWworICBbIm15LXJpZyIsICJjaGF0cm9vbUBteS1yaWciXSwKKyAgWyJteSByaWciLCAiY2hhdHJvb21AbXkgcmlnIl0sCisgIFsiaXQncyIsICJjaGF0cm9vbUBpdCdzIl0sCisgIFsnc2F5ICJoaSInLCAnY2hhdHJvb21Ac2F5ICJoaSInXSwKKyAgWyJhO2IiLCAiY2hhdHJvb21AYTtiIl0sCisgIFsiYGlkYCIsICJjaGF0cm9vbUBgaWRgIl0sCisgIFsiJChwcmludGYgc2VudGluZWwpIiwgImNoYXRyb29tQCQocHJpbnRmIHNlbnRpbmVsKSJdLAorICBbImEkSE9NRSIsICJjaGF0cm9vbUBhJEhPTUUiXSwKKyAgWyItb3B0aW9uIiwgImNoYXRyb29tQC1vcHRpb24iXSwKKyAgWyJzaW5nbGUjdGFnIiwgImNoYXRyb29tQHNpbmdsZSN7bDojI310YWciXSwKKyAgWyJkb3VibGUjI3RhZyIsICJjaGF0cm9vbUBkb3VibGUje2w6IyN9I3tsOiMjfXRhZyJdLAorICBbInN0eWxlI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfVtmZz1yZWRddGFnIl0sCisgIFsic3R5bGUjI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfSN7bDojI31bZmc9cmVkXXRhZyJdLAorICBbImZvcm1hdCN7cGlkfSIsICJjaGF0cm9vbUBmb3JtYXQje2w6IyN9e3BpZH0iXSwKK10gYXMgY29uc3Q7CiAKIGRlc2NyaWJlKCJjaGF0cm9vbSB3YXRjaCAtLXRtdXggY29tbWFuZCIsICgpID0+IHsKLSAgaXQoImtlZXBzIGEgcGxhaW4gcmlnIG5hbWUgYXMgdGhlIHNlc3Npb24gc3VmZml4IGFuZCB0aGUgd2F0Y2hlciBhcmd1bWVudCIsICgpID0+IHsKLSAgICBjb25zdCBhcmdzID0gY2hhdHJvb21XYXRjaFRtdXhBcmdzKCJteS1yaWciKTsKLSAgICBleHBlY3QoYXJncy5zbGljZSgwLCA0KSkudG9FcXVhbChbIm5ldy1zZXNzaW9uIiwgIi1kIiwgIi1zIiwgImNoYXRyb29tQG15LXJpZyJdKTsKLSAgICBleHBlY3QoYXJnc1NlZW5CeVdhdGNoZXIoYXJnc1s0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCAibXktcmlnIl0pOworICBpdC5lYWNoKGNhc2VzKSgicGFzc2VzICVqIGFzIHNlcGFyYXRlLCBsaXRlcmFsIHdhdGNoZXIgYXJndW1lbnRzIiwgKHJpZywgc2Vzc2lvbkZvcm1hdCkgPT4geworICAgIGV4cGVjdChjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKSkudG9FcXVhbChbCisgICAgICAibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBzZXNzaW9uRm9ybWF0LCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnLAorICAgIF0pOwogICB9KTsKK30pOworCitjb25zdCBoYXNUbXV4ID0gcHJvY2Vzcy5wbGF0Zm9ybSAhPT0gIndpbjMyIiAmJiBzcGF3blN5bmMoInRtdXgiLCBbIi1WIl0pLnN0YXR1cyA9PT0gMDsKIAotICBpdC5lYWNoKFsibXkgcmlnIiwgIml0J3MiLCAnc2F5ICJoaSInLCAiJCh0b3VjaCAvdG1wL29wZW5yaWctcHduZWQpIiwgImBpZGAiLCAiYTtiIiwgImEkSE9NRSJdKSgKLSAgICAiZGVsaXZlcnMgJWogdG8gdGhlIHdhdGNoZXIgYXMgb25lIGxpdGVyYWwgYXJndW1lbnQiLAotICAgIChyaWcpID0+IHsKLSAgICAgIGV4cGVjdChhcmdzU2VlbkJ5V2F0Y2hlcihjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKVs0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCByaWddKTsKLSAgICB9LAotICApOworZGVzY3JpYmUuc2tpcElmKCFoYXNUbXV4KSgiY2hhdHJvb20gd2F0Y2ggbmF0aXZlIHRtdXgiLCAoKSA9PiB7CisgIGl0LmVhY2goY2FzZXMpKCJwcmVzZXJ2ZXMgJWogaW4gdGhlIHNlc3Npb24gbmFtZSBhbmQgbGF1bmNoZWQgYXJndiIsIGFzeW5jIChyaWcpID0+IHsKKyAgICBjb25zdCBkaXIgPSBta2R0ZW1wU3luYyhqb2luKHRtcGRpcigpLCAib3QtIikpOworICAgIGNvbnN0IHNvY2tldCA9IGpvaW4oZGlyLCAicyIpOworICAgIGNvbnN0IG91dHB1dCA9IGpvaW4oZGlyLCAiYXJncy5qc29uIik7CisgICAgY29uc3QgcHJvYmUgPSBqb2luKGRpciwgInByb2JlLmNqcyIpOworICAgIGNvbnN0IGV4ZWN1dGFibGUgPSBqb2luKGRpciwgInJpZyIpOworICAgIHdyaXRlRmlsZVN5bmMocHJvYmUsIGByZXF1aXJlKCJub2RlOmZzIikud3JpdGVGaWxlU3luYyhwcm9jZXNzLmVudi5PUEVOUklHX1RNVVhfVEVTVF9PVVRQVVQsIEpTT04uc3RyaW5naWZ5KHByb2Nlc3MuYXJndi5zbGljZSgyKSkpOyBzZXRJbnRlcnZhbCgoKSA9PiB7fSwgMTAwMCk7YCk7CisgICAgd3JpdGVGaWxlU3luYyhleGVjdXRhYmxlLCAnIyEvYmluL3NoXG5leGVjICIkT1BFTlJJR19UTVVYX1RFU1RfTk9ERSIgIiRPUEVOUklHX1RNVVhfVEVTVF9QUk9CRSIgIiRAIlxuJyk7CisgICAgY2htb2RTeW5jKGV4ZWN1dGFibGUsIDBvNzU1KTsKKyAgICB0cnkgeworICAgICAgZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgIi1mIiwgIi9kZXYvbnVsbCIsIC4uLmNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpXSwgeworICAgICAgICBlbnY6IHsKKyAgICAgICAgICAuLi5wcm9jZXNzLmVudiwKKyAgICAgICAgICBUTVVYOiAiIiwKKyAgICAgICAgICBQQVRIOiBgJHtkaXJ9OiR7cHJvY2Vzcy5lbnYuUEFUSCA/PyAiIn1gLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX05PREU6IHByb2Nlc3MuZXhlY1BhdGgsCisgICAgICAgICAgT1BFTlJJR19UTVVYX1RFU1RfUFJPQkU6IHByb2JlLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX09VVFBVVDogb3V0cHV0LAorICAgICAgICB9LAorICAgICAgfSk7CisgICAgICBmb3IgKGxldCBhdHRlbXB0ID0gMDsgYXR0ZW1wdCA8IDEwMCAmJiAhZXhpc3RzU3luYyhvdXRwdXQpOyBhdHRlbXB0KyspIGF3YWl0IGRlbGF5KDIwKTsKKyAgICAgIGV4cGVjdChleGlzdHNTeW5jKG91dHB1dCkpLnRvQmUodHJ1ZSk7CisgICAgICBleHBlY3QoZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgImxpc3Qtc2Vzc2lvbnMiLCAiLUYiLCAiI3tzZXNzaW9uX25hbWV9Il0sIHsgZW5jb2Rpbmc6ICJ1dGYtOCIgfSkudHJpbUVuZCgpKS50b0JlKGBjaGF0cm9vbUAke3JpZ31gKTsKKyAgICAgIGV4cGVjdChKU09OLnBhcnNlKHJlYWRGaWxlU3luYyhvdXRwdXQsICJ1dGYtOCIpKSkudG9FcXVhbChbImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXSk7CisgICAgfSBmaW5hbGx5IHsKKyAgICAgIHNwYXduU3luYygidG11eCIsIFsiLVMiLCBzb2NrZXQsICJraWxsLXNlcnZlciJdKTsKKyAgICAgIHJtU3luYyhkaXIsIHsgcmVjdXJzaXZlOiB0cnVlLCBmb3JjZTogdHJ1ZSB9KTsKKyAgICB9CisgIH0pOwogfSk7Cg=='');
+        assert hashlib.sha256(p).hexdigest()==''95a45a13d1cb66595b085e92992c3de36931a74961bd6bf3f12f27492602a6b8''
+
+        subprocess.run([''git'',''apply'',''--check'',''-''],input=p,check=True)
+
+        subprocess.run([''git'',''apply'',''-''],input=p,check=True)
+
+        pathlib.Path(''/tmp/openrig1415-expected.patch'').write_bytes(p)
+
+        pathlib.Path(''/tmp/openrig1415-files.json'').write_text(''{"packages/cli/src/commands/chatroom.ts": {"baseline_sha256": "a663d18fa0f5a8446e5b4ae49419c10fa8f38e286584ed3867558b07cd62b1c6",
+        "candidate_sha256": "2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom.ts"},
+        "packages/cli/test/chatroom-watch-tmux-args.test.ts": {"baseline_sha256": "e8fbdd008f59438eba68965f7c1d87cb9b68a5401d609472bed58aa6a0a2427d",
+        "candidate_sha256": "f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom-watch-tmux-args.test.ts"}}'')
+
+        '
+    - name: Strict candidate identity before native gates
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      env:
+        QUAL_PHASE: before
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: npm
+    - run: npm ci
+    - run: npm run test:repo
+    - name: Strict candidate identity after native gates
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      if: always()
+      env:
+        QUAL_PHASE: after
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: openrig1415-source-repo-checks-${{ matrix.package }}-${{ github.run_id }}
+        path: ${{ runner.temp }}/source-identity-*.json
+        if-no-files-found: error
   package-tests:
-    # macOS, the platform OpenRig runs on: several daemon and cli tests read macOS ps columns,
-    # file-inode behaviour and release tags.
     runs-on: macos-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        package: [daemon, cli, tui, ui]
+        package:
+        - daemon
+        - cli
+        - tui
+        - ui
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: brew install tmux
-      - run: npm ci
-      - name: Build the packages the tests import
-        run: npm run build
-      - name: Run the suite without ambient credentials or external network
-        run: |
-          suite_root=$(mktemp -d "$RUNNER_TEMP/opr-test.XXXXXX")
-          suite_root=$(cd "$suite_root" && pwd -P)
-          mkdir -p "$suite_root/home" "$suite_root/bin"
-          # Same system bytes, nonprivileged mode; no system file is changed.
-          /usr/bin/install -m 0755 /bin/ps "$suite_root/bin/ps"
-          # Only this job's temporary sockets (including tmux) are reachable.
-          env -i HOME="$suite_root/home" PATH="$PATH" TMPDIR="$suite_root" TMUX_TMPDIR="$suite_root" \
-            CI=true TERM=xterm-256color \
-            sandbox-exec -D IPC_ROOT="$suite_root" -p '(version 1)(allow default)(deny network-outbound)(allow network-outbound (remote ip "localhost:*"))(allow network-outbound (subpath (param "IPC_ROOT")))' \
-            /bin/bash -s "${{ matrix.package }}" <<'SUITE'
-          set -euo pipefail
-          node scripts/ci-macos-process-probe.mjs
-          # The production readers use bare ps. Select real system bytes only after
-          # self/owned-child observation and network/IPC confinement are proved.
-          export PATH="$TMPDIR/bin:$PATH"
-          test "$(command -v ps)" = "$TMPDIR/bin/ps"
-          exec npm run test -w "packages/$1"
-          SUITE
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: '0'
+        persist-credentials: false
+        repository: mvschwarz/openrig
+        ref: d93377f3f9d9728458127c7e8773484cfdd82dd6
+    - name: Apply exact reviewed source packet
+      shell: python
+      run: 'import base64,hashlib,pathlib,subprocess,json
 
+        assert subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip()==''d93377f3f9d9728458127c7e8773484cfdd82dd6''
+
+        p=base64.b64decode(''ZGlmZiAtLWdpdCBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMgYi9wYWNrYWdlcy9jbGkvc3JjL2NvbW1hbmRzL2NoYXRyb29tLnRzCmluZGV4IGFiYTI2NmJkOThkMGU4ZmU4MTVlOWZlZDEzYjZjOTdkNWJiYTdkZTAuLjJhYjc5ZWE5N2FkZGZjNTk0NjI0NzM2NDA2MTBiZWJjMWVkN2UwNGMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMKKysrIGIvcGFja2FnZXMvY2xpL3NyYy9jb21tYW5kcy9jaGF0cm9vbS50cwpAQCAtNywxMSArNywxMSBAQCBpbXBvcnQgdHlwZSB7IFN0YXR1c0RlcHMgfSBmcm9tICIuL3N0YXR1cy5qcyI7CiBpbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOwogaW1wb3J0IHsgc2hlbGxRdW90ZSB9IGZyb20gIi4uL2Nyb3NzLWhvc3QtZXhlY3V0b3IuanMiOwogCi0vKiogYXJndiBmb3IgdGhlIGRlZGljYXRlZCB0bXV4IHNlc3Npb24gdGhhdCBydW5zIGByaWcgY2hhdHJvb20gd2F0Y2hgLiB0bXV4IGhhbmRzIGl0cyBsYXN0IGFyZ3VtZW50IHRvCi0gKiAgYHNoIC1jYCwgc28gdGhlIHJpZyBuYW1lIGlzIHNpbmdsZS1xdW90ZWQ6IGEgbmFtZSB3aXRoIHNwYWNlcywgcXVvdGVzLCBgJGAgb3IgYmFja3RpY2tzIHJlYWNoZXMgdGhlCi0gKiAgd2F0Y2hlciBhcyBvbmUgbGl0ZXJhbCBhcmd1bWVudCBhbmQgaXMgbmV2ZXIgZXhwYW5kZWQgYnkgdGhlIHNoZWxsLiAqLworLyoqIGFyZ3YgZm9yIGEgZGVkaWNhdGVkIHRtdXggc2Vzc2lvbjsgbXVsdGlwbGUgY29tbWFuZCBhcmd1bWVudHMgYnlwYXNzIGl0cyBkZWZhdWx0IHNoZWxsLiAqLwogZXhwb3J0IGZ1bmN0aW9uIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWc6IHN0cmluZyk6IHN0cmluZ1tdIHsKLSAgcmV0dXJuIFsibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBgY2hhdHJvb21AJHtyaWd9YCwgYHJpZyBjaGF0cm9vbSB3YXRjaCAke3NoZWxsUXVvdGUocmlnKX1gXTsKKyAgLy8gTGl0ZXJhbC1mb3JtYXQgZXhwYW5zaW9ucyBhbHNvIHByZXNlcnZlIGhhc2hlcyBhZGphY2VudCB0byB0bXV4J3Mgc3BlY2lhbCAjWy4uLl0gc3ludGF4LgorICBjb25zdCBzZXNzaW9uTmFtZSA9IGBjaGF0cm9vbUAke3JpZ31gLnJlcGxhY2VBbGwoIiMiLCAiI3tsOiMjfSIpOworICByZXR1cm4gWyJuZXctc2Vzc2lvbiIsICItZCIsICItcyIsIHNlc3Npb25OYW1lLCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXTsKIH0KIAogaW50ZXJmYWNlIFJpZ1N1bW1hcnkgewpAQCAtMTgyLDcgKzE4Miw3IEBAIGV4cG9ydCBmdW5jdGlvbiBjaGF0cm9vbUNvbW1hbmQoZGVwc092ZXJyaWRlPzogU3RhdHVzRGVwcyk6IENvbW1hbmQgewogICAgICAgICB0cnkgewogICAgICAgICAgIGV4ZWNGaWxlU3luYygidG11eCIsIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpLCB7IHN0ZGlvOiAiaWdub3JlIiB9KTsKICAgICAgICAgICBjb25zb2xlLmxvZyhgU3RhcnRlZCB3YXRjaCBpbiB0bXV4IHNlc3Npb246ICR7c2Vzc2lvbk5hbWV9YCk7Ci0gICAgICAgICAgY29uc29sZS5sb2coYEF0dGFjaCB3aXRoOiB0bXV4IGF0dGFjaCAtdCAke3Nlc3Npb25OYW1lfWApOworICAgICAgICAgIGNvbnNvbGUubG9nKGBBdHRhY2ggd2l0aDogdG11eCBhdHRhY2ggLXQgJHtzaGVsbFF1b3RlKHNlc3Npb25OYW1lKX1gKTsKICAgICAgICAgfSBjYXRjaCB7CiAgICAgICAgICAgY29uc29sZS5lcnJvcihgRmFpbGVkIHRvIGNyZWF0ZSB0bXV4IHNlc3Npb24gJyR7c2Vzc2lvbk5hbWV9Jy4gSXQgbWF5IGFscmVhZHkgZXhpc3QuYCk7CiAgICAgICAgICAgcHJvY2Vzcy5leGl0Q29kZSA9IDE7CmRpZmYgLS1naXQgYS9wYWNrYWdlcy9jbGkvdGVzdC9jaGF0cm9vbS13YXRjaC10bXV4LWFyZ3MudGVzdC50cyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCmluZGV4IDg1YzNmY2Y0Yzc0MzIyMmUwNWRiNzEwMDg2ZThhNTJjZjIwMDQzYzYuLmM2Yzg0OGMzNGMyN2FkZTc0ZTZlY2JkZWU2OGQ3NWVjMjA4Njk2ZTMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCisrKyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCkBAIC0xLDI1ICsxLDY2IEBACiBpbXBvcnQgeyBkZXNjcmliZSwgaXQsIGV4cGVjdCB9IGZyb20gInZpdGVzdCI7Ci1pbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgZXhlY0ZpbGVTeW5jLCBzcGF3blN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgY2htb2RTeW5jLCBleGlzdHNTeW5jLCBta2R0ZW1wU3luYywgcmVhZEZpbGVTeW5jLCBybVN5bmMsIHdyaXRlRmlsZVN5bmMgfSBmcm9tICJub2RlOmZzIjsKK2ltcG9ydCB7IHRtcGRpciB9IGZyb20gIm5vZGU6b3MiOworaW1wb3J0IHsgam9pbiB9IGZyb20gIm5vZGU6cGF0aCI7CitpbXBvcnQgeyBzZXRUaW1lb3V0IGFzIGRlbGF5IH0gZnJvbSAibm9kZTp0aW1lcnMvcHJvbWlzZXMiOwogaW1wb3J0IHsgY2hhdHJvb21XYXRjaFRtdXhBcmdzIH0gZnJvbSAiLi4vc3JjL2NvbW1hbmRzL2NoYXRyb29tLmpzIjsKIAotLy8gdG11eCBydW5zIGl0cyBsYXN0IGFyZ3VtZW50IHRocm91Z2ggYHNoIC1jYC4gU3dhcCB0aGUgbGVhZGluZyBgcmlnYCBmb3IgYSBmdW5jdGlvbiB0aGF0IHByaW50cwotLy8gZWFjaCBhcmd1bWVudCBvbiBpdHMgb3duIGxpbmUgdG8gc2VlIGV4YWN0bHkgd2hhdCB0aGUgd2F0Y2hlciB3b3VsZCByZWNlaXZlLgotZnVuY3Rpb24gYXJnc1NlZW5CeVdhdGNoZXIoc2hlbGxDb21tYW5kOiBzdHJpbmcpOiBzdHJpbmdbXSB7Ci0gIGNvbnN0IHByb2JlID0gYGYoKSB7IGZvciBhIGluICIkQCI7IGRvIHByaW50ZiAnJXNcXG4nICIkYSI7IGRvbmU7IH07ICR7c2hlbGxDb21tYW5kLnJlcGxhY2UoL15yaWcgLywgImYgIil9YDsKLSAgcmV0dXJuIGV4ZWNGaWxlU3luYygic2giLCBbIi1jIiwgcHJvYmVdLCB7IGVuY29kaW5nOiAidXRmLTgiIH0pLnNwbGl0KCJcbiIpLnNsaWNlKDAsIC0xKTsKLX0KK2NvbnN0IGNhc2VzID0gWworICBbIm15LXJpZyIsICJjaGF0cm9vbUBteS1yaWciXSwKKyAgWyJteSByaWciLCAiY2hhdHJvb21AbXkgcmlnIl0sCisgIFsiaXQncyIsICJjaGF0cm9vbUBpdCdzIl0sCisgIFsnc2F5ICJoaSInLCAnY2hhdHJvb21Ac2F5ICJoaSInXSwKKyAgWyJhO2IiLCAiY2hhdHJvb21AYTtiIl0sCisgIFsiYGlkYCIsICJjaGF0cm9vbUBgaWRgIl0sCisgIFsiJChwcmludGYgc2VudGluZWwpIiwgImNoYXRyb29tQCQocHJpbnRmIHNlbnRpbmVsKSJdLAorICBbImEkSE9NRSIsICJjaGF0cm9vbUBhJEhPTUUiXSwKKyAgWyItb3B0aW9uIiwgImNoYXRyb29tQC1vcHRpb24iXSwKKyAgWyJzaW5nbGUjdGFnIiwgImNoYXRyb29tQHNpbmdsZSN7bDojI310YWciXSwKKyAgWyJkb3VibGUjI3RhZyIsICJjaGF0cm9vbUBkb3VibGUje2w6IyN9I3tsOiMjfXRhZyJdLAorICBbInN0eWxlI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfVtmZz1yZWRddGFnIl0sCisgIFsic3R5bGUjI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfSN7bDojI31bZmc9cmVkXXRhZyJdLAorICBbImZvcm1hdCN7cGlkfSIsICJjaGF0cm9vbUBmb3JtYXQje2w6IyN9e3BpZH0iXSwKK10gYXMgY29uc3Q7CiAKIGRlc2NyaWJlKCJjaGF0cm9vbSB3YXRjaCAtLXRtdXggY29tbWFuZCIsICgpID0+IHsKLSAgaXQoImtlZXBzIGEgcGxhaW4gcmlnIG5hbWUgYXMgdGhlIHNlc3Npb24gc3VmZml4IGFuZCB0aGUgd2F0Y2hlciBhcmd1bWVudCIsICgpID0+IHsKLSAgICBjb25zdCBhcmdzID0gY2hhdHJvb21XYXRjaFRtdXhBcmdzKCJteS1yaWciKTsKLSAgICBleHBlY3QoYXJncy5zbGljZSgwLCA0KSkudG9FcXVhbChbIm5ldy1zZXNzaW9uIiwgIi1kIiwgIi1zIiwgImNoYXRyb29tQG15LXJpZyJdKTsKLSAgICBleHBlY3QoYXJnc1NlZW5CeVdhdGNoZXIoYXJnc1s0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCAibXktcmlnIl0pOworICBpdC5lYWNoKGNhc2VzKSgicGFzc2VzICVqIGFzIHNlcGFyYXRlLCBsaXRlcmFsIHdhdGNoZXIgYXJndW1lbnRzIiwgKHJpZywgc2Vzc2lvbkZvcm1hdCkgPT4geworICAgIGV4cGVjdChjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKSkudG9FcXVhbChbCisgICAgICAibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBzZXNzaW9uRm9ybWF0LCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnLAorICAgIF0pOwogICB9KTsKK30pOworCitjb25zdCBoYXNUbXV4ID0gcHJvY2Vzcy5wbGF0Zm9ybSAhPT0gIndpbjMyIiAmJiBzcGF3blN5bmMoInRtdXgiLCBbIi1WIl0pLnN0YXR1cyA9PT0gMDsKIAotICBpdC5lYWNoKFsibXkgcmlnIiwgIml0J3MiLCAnc2F5ICJoaSInLCAiJCh0b3VjaCAvdG1wL29wZW5yaWctcHduZWQpIiwgImBpZGAiLCAiYTtiIiwgImEkSE9NRSJdKSgKLSAgICAiZGVsaXZlcnMgJWogdG8gdGhlIHdhdGNoZXIgYXMgb25lIGxpdGVyYWwgYXJndW1lbnQiLAotICAgIChyaWcpID0+IHsKLSAgICAgIGV4cGVjdChhcmdzU2VlbkJ5V2F0Y2hlcihjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKVs0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCByaWddKTsKLSAgICB9LAotICApOworZGVzY3JpYmUuc2tpcElmKCFoYXNUbXV4KSgiY2hhdHJvb20gd2F0Y2ggbmF0aXZlIHRtdXgiLCAoKSA9PiB7CisgIGl0LmVhY2goY2FzZXMpKCJwcmVzZXJ2ZXMgJWogaW4gdGhlIHNlc3Npb24gbmFtZSBhbmQgbGF1bmNoZWQgYXJndiIsIGFzeW5jIChyaWcpID0+IHsKKyAgICBjb25zdCBkaXIgPSBta2R0ZW1wU3luYyhqb2luKHRtcGRpcigpLCAib3QtIikpOworICAgIGNvbnN0IHNvY2tldCA9IGpvaW4oZGlyLCAicyIpOworICAgIGNvbnN0IG91dHB1dCA9IGpvaW4oZGlyLCAiYXJncy5qc29uIik7CisgICAgY29uc3QgcHJvYmUgPSBqb2luKGRpciwgInByb2JlLmNqcyIpOworICAgIGNvbnN0IGV4ZWN1dGFibGUgPSBqb2luKGRpciwgInJpZyIpOworICAgIHdyaXRlRmlsZVN5bmMocHJvYmUsIGByZXF1aXJlKCJub2RlOmZzIikud3JpdGVGaWxlU3luYyhwcm9jZXNzLmVudi5PUEVOUklHX1RNVVhfVEVTVF9PVVRQVVQsIEpTT04uc3RyaW5naWZ5KHByb2Nlc3MuYXJndi5zbGljZSgyKSkpOyBzZXRJbnRlcnZhbCgoKSA9PiB7fSwgMTAwMCk7YCk7CisgICAgd3JpdGVGaWxlU3luYyhleGVjdXRhYmxlLCAnIyEvYmluL3NoXG5leGVjICIkT1BFTlJJR19UTVVYX1RFU1RfTk9ERSIgIiRPUEVOUklHX1RNVVhfVEVTVF9QUk9CRSIgIiRAIlxuJyk7CisgICAgY2htb2RTeW5jKGV4ZWN1dGFibGUsIDBvNzU1KTsKKyAgICB0cnkgeworICAgICAgZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgIi1mIiwgIi9kZXYvbnVsbCIsIC4uLmNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpXSwgeworICAgICAgICBlbnY6IHsKKyAgICAgICAgICAuLi5wcm9jZXNzLmVudiwKKyAgICAgICAgICBUTVVYOiAiIiwKKyAgICAgICAgICBQQVRIOiBgJHtkaXJ9OiR7cHJvY2Vzcy5lbnYuUEFUSCA/PyAiIn1gLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX05PREU6IHByb2Nlc3MuZXhlY1BhdGgsCisgICAgICAgICAgT1BFTlJJR19UTVVYX1RFU1RfUFJPQkU6IHByb2JlLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX09VVFBVVDogb3V0cHV0LAorICAgICAgICB9LAorICAgICAgfSk7CisgICAgICBmb3IgKGxldCBhdHRlbXB0ID0gMDsgYXR0ZW1wdCA8IDEwMCAmJiAhZXhpc3RzU3luYyhvdXRwdXQpOyBhdHRlbXB0KyspIGF3YWl0IGRlbGF5KDIwKTsKKyAgICAgIGV4cGVjdChleGlzdHNTeW5jKG91dHB1dCkpLnRvQmUodHJ1ZSk7CisgICAgICBleHBlY3QoZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgImxpc3Qtc2Vzc2lvbnMiLCAiLUYiLCAiI3tzZXNzaW9uX25hbWV9Il0sIHsgZW5jb2Rpbmc6ICJ1dGYtOCIgfSkudHJpbUVuZCgpKS50b0JlKGBjaGF0cm9vbUAke3JpZ31gKTsKKyAgICAgIGV4cGVjdChKU09OLnBhcnNlKHJlYWRGaWxlU3luYyhvdXRwdXQsICJ1dGYtOCIpKSkudG9FcXVhbChbImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXSk7CisgICAgfSBmaW5hbGx5IHsKKyAgICAgIHNwYXduU3luYygidG11eCIsIFsiLVMiLCBzb2NrZXQsICJraWxsLXNlcnZlciJdKTsKKyAgICAgIHJtU3luYyhkaXIsIHsgcmVjdXJzaXZlOiB0cnVlLCBmb3JjZTogdHJ1ZSB9KTsKKyAgICB9CisgIH0pOwogfSk7Cg=='');
+        assert hashlib.sha256(p).hexdigest()==''95a45a13d1cb66595b085e92992c3de36931a74961bd6bf3f12f27492602a6b8''
+
+        subprocess.run([''git'',''apply'',''--check'',''-''],input=p,check=True)
+
+        subprocess.run([''git'',''apply'',''-''],input=p,check=True)
+
+        pathlib.Path(''/tmp/openrig1415-expected.patch'').write_bytes(p)
+
+        pathlib.Path(''/tmp/openrig1415-files.json'').write_text(''{"packages/cli/src/commands/chatroom.ts": {"baseline_sha256": "a663d18fa0f5a8446e5b4ae49419c10fa8f38e286584ed3867558b07cd62b1c6",
+        "candidate_sha256": "2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom.ts"},
+        "packages/cli/test/chatroom-watch-tmux-args.test.ts": {"baseline_sha256": "e8fbdd008f59438eba68965f7c1d87cb9b68a5401d609472bed58aa6a0a2427d",
+        "candidate_sha256": "f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom-watch-tmux-args.test.ts"}}'')
+
+        '
+    - name: Strict candidate identity before native gates
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      env:
+        QUAL_PHASE: before
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: npm
+    - run: brew install tmux
+    - run: npm ci
+    - name: Build the packages the tests import
+      run: npm run build
+    - name: Run the suite without ambient credentials or external network
+      run: "suite_root=$(mktemp -d \"$RUNNER_TEMP/opr-test.XXXXXX\")\nsuite_root=$(cd \"$suite_root\" && pwd -P)\nmkdir -p \"$suite_root/home\"\
+        \ \"$suite_root/bin\"\n# Same system bytes, nonprivileged mode; no system file is changed.\n/usr/bin/install -m 0755 /bin/ps \"$suite_root/bin/ps\"\
+        \n# Only this job's temporary sockets (including tmux) are reachable.\nenv -i HOME=\"$suite_root/home\" PATH=\"$PATH\" TMPDIR=\"$suite_root\"\
+        \ TMUX_TMPDIR=\"$suite_root\" \\\n  CI=true TERM=xterm-256color \\\n  sandbox-exec -D IPC_ROOT=\"$suite_root\" -p '(version 1)(allow default)(deny\
+        \ network-outbound)(allow network-outbound (remote ip \"localhost:*\"))(allow network-outbound (subpath (param \"IPC_ROOT\")))' \\\n \
+        \ /bin/bash -s \"${{ matrix.package }}\" <<'SUITE'\nset -euo pipefail\nnode scripts/ci-macos-process-probe.mjs\n# The production readers\
+        \ use bare ps. Select real system bytes only after\n# self/owned-child observation and network/IPC confinement are proved.\nexport PATH=\"\
+        $TMPDIR/bin:$PATH\"\ntest \"$(command -v ps)\" = \"$TMPDIR/bin/ps\"\nexec npm run test -w \"packages/$1\"\nSUITE\n"
+    - name: Strict candidate identity after native gates
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      if: always()
+      env:
+        QUAL_PHASE: after
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: openrig1415-source-package-tests-${{ matrix.package }}-${{ github.run_id }}
+        path: ${{ runner.temp }}/source-identity-*.json
+        if-no-files-found: error
   installed-scenario:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - name: Installed package, daemon restart, and seeded durability failure
-        run: bash scripts/run-pr-scenarios.sh
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: installed-scenario-evidence
-          path: dist/pr-scenarios/
-          if-no-files-found: error
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        repository: mvschwarz/openrig
+        ref: d93377f3f9d9728458127c7e8773484cfdd82dd6
+    - name: Apply exact reviewed source packet
+      shell: python
+      run: 'import base64,hashlib,pathlib,subprocess,json
+
+        assert subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip()==''d93377f3f9d9728458127c7e8773484cfdd82dd6''
+
+        p=base64.b64decode(''ZGlmZiAtLWdpdCBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMgYi9wYWNrYWdlcy9jbGkvc3JjL2NvbW1hbmRzL2NoYXRyb29tLnRzCmluZGV4IGFiYTI2NmJkOThkMGU4ZmU4MTVlOWZlZDEzYjZjOTdkNWJiYTdkZTAuLjJhYjc5ZWE5N2FkZGZjNTk0NjI0NzM2NDA2MTBiZWJjMWVkN2UwNGMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMKKysrIGIvcGFja2FnZXMvY2xpL3NyYy9jb21tYW5kcy9jaGF0cm9vbS50cwpAQCAtNywxMSArNywxMSBAQCBpbXBvcnQgdHlwZSB7IFN0YXR1c0RlcHMgfSBmcm9tICIuL3N0YXR1cy5qcyI7CiBpbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOwogaW1wb3J0IHsgc2hlbGxRdW90ZSB9IGZyb20gIi4uL2Nyb3NzLWhvc3QtZXhlY3V0b3IuanMiOwogCi0vKiogYXJndiBmb3IgdGhlIGRlZGljYXRlZCB0bXV4IHNlc3Npb24gdGhhdCBydW5zIGByaWcgY2hhdHJvb20gd2F0Y2hgLiB0bXV4IGhhbmRzIGl0cyBsYXN0IGFyZ3VtZW50IHRvCi0gKiAgYHNoIC1jYCwgc28gdGhlIHJpZyBuYW1lIGlzIHNpbmdsZS1xdW90ZWQ6IGEgbmFtZSB3aXRoIHNwYWNlcywgcXVvdGVzLCBgJGAgb3IgYmFja3RpY2tzIHJlYWNoZXMgdGhlCi0gKiAgd2F0Y2hlciBhcyBvbmUgbGl0ZXJhbCBhcmd1bWVudCBhbmQgaXMgbmV2ZXIgZXhwYW5kZWQgYnkgdGhlIHNoZWxsLiAqLworLyoqIGFyZ3YgZm9yIGEgZGVkaWNhdGVkIHRtdXggc2Vzc2lvbjsgbXVsdGlwbGUgY29tbWFuZCBhcmd1bWVudHMgYnlwYXNzIGl0cyBkZWZhdWx0IHNoZWxsLiAqLwogZXhwb3J0IGZ1bmN0aW9uIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWc6IHN0cmluZyk6IHN0cmluZ1tdIHsKLSAgcmV0dXJuIFsibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBgY2hhdHJvb21AJHtyaWd9YCwgYHJpZyBjaGF0cm9vbSB3YXRjaCAke3NoZWxsUXVvdGUocmlnKX1gXTsKKyAgLy8gTGl0ZXJhbC1mb3JtYXQgZXhwYW5zaW9ucyBhbHNvIHByZXNlcnZlIGhhc2hlcyBhZGphY2VudCB0byB0bXV4J3Mgc3BlY2lhbCAjWy4uLl0gc3ludGF4LgorICBjb25zdCBzZXNzaW9uTmFtZSA9IGBjaGF0cm9vbUAke3JpZ31gLnJlcGxhY2VBbGwoIiMiLCAiI3tsOiMjfSIpOworICByZXR1cm4gWyJuZXctc2Vzc2lvbiIsICItZCIsICItcyIsIHNlc3Npb25OYW1lLCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXTsKIH0KIAogaW50ZXJmYWNlIFJpZ1N1bW1hcnkgewpAQCAtMTgyLDcgKzE4Miw3IEBAIGV4cG9ydCBmdW5jdGlvbiBjaGF0cm9vbUNvbW1hbmQoZGVwc092ZXJyaWRlPzogU3RhdHVzRGVwcyk6IENvbW1hbmQgewogICAgICAgICB0cnkgewogICAgICAgICAgIGV4ZWNGaWxlU3luYygidG11eCIsIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpLCB7IHN0ZGlvOiAiaWdub3JlIiB9KTsKICAgICAgICAgICBjb25zb2xlLmxvZyhgU3RhcnRlZCB3YXRjaCBpbiB0bXV4IHNlc3Npb246ICR7c2Vzc2lvbk5hbWV9YCk7Ci0gICAgICAgICAgY29uc29sZS5sb2coYEF0dGFjaCB3aXRoOiB0bXV4IGF0dGFjaCAtdCAke3Nlc3Npb25OYW1lfWApOworICAgICAgICAgIGNvbnNvbGUubG9nKGBBdHRhY2ggd2l0aDogdG11eCBhdHRhY2ggLXQgJHtzaGVsbFF1b3RlKHNlc3Npb25OYW1lKX1gKTsKICAgICAgICAgfSBjYXRjaCB7CiAgICAgICAgICAgY29uc29sZS5lcnJvcihgRmFpbGVkIHRvIGNyZWF0ZSB0bXV4IHNlc3Npb24gJyR7c2Vzc2lvbk5hbWV9Jy4gSXQgbWF5IGFscmVhZHkgZXhpc3QuYCk7CiAgICAgICAgICAgcHJvY2Vzcy5leGl0Q29kZSA9IDE7CmRpZmYgLS1naXQgYS9wYWNrYWdlcy9jbGkvdGVzdC9jaGF0cm9vbS13YXRjaC10bXV4LWFyZ3MudGVzdC50cyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCmluZGV4IDg1YzNmY2Y0Yzc0MzIyMmUwNWRiNzEwMDg2ZThhNTJjZjIwMDQzYzYuLmM2Yzg0OGMzNGMyN2FkZTc0ZTZlY2JkZWU2OGQ3NWVjMjA4Njk2ZTMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCisrKyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCkBAIC0xLDI1ICsxLDY2IEBACiBpbXBvcnQgeyBkZXNjcmliZSwgaXQsIGV4cGVjdCB9IGZyb20gInZpdGVzdCI7Ci1pbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgZXhlY0ZpbGVTeW5jLCBzcGF3blN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgY2htb2RTeW5jLCBleGlzdHNTeW5jLCBta2R0ZW1wU3luYywgcmVhZEZpbGVTeW5jLCBybVN5bmMsIHdyaXRlRmlsZVN5bmMgfSBmcm9tICJub2RlOmZzIjsKK2ltcG9ydCB7IHRtcGRpciB9IGZyb20gIm5vZGU6b3MiOworaW1wb3J0IHsgam9pbiB9IGZyb20gIm5vZGU6cGF0aCI7CitpbXBvcnQgeyBzZXRUaW1lb3V0IGFzIGRlbGF5IH0gZnJvbSAibm9kZTp0aW1lcnMvcHJvbWlzZXMiOwogaW1wb3J0IHsgY2hhdHJvb21XYXRjaFRtdXhBcmdzIH0gZnJvbSAiLi4vc3JjL2NvbW1hbmRzL2NoYXRyb29tLmpzIjsKIAotLy8gdG11eCBydW5zIGl0cyBsYXN0IGFyZ3VtZW50IHRocm91Z2ggYHNoIC1jYC4gU3dhcCB0aGUgbGVhZGluZyBgcmlnYCBmb3IgYSBmdW5jdGlvbiB0aGF0IHByaW50cwotLy8gZWFjaCBhcmd1bWVudCBvbiBpdHMgb3duIGxpbmUgdG8gc2VlIGV4YWN0bHkgd2hhdCB0aGUgd2F0Y2hlciB3b3VsZCByZWNlaXZlLgotZnVuY3Rpb24gYXJnc1NlZW5CeVdhdGNoZXIoc2hlbGxDb21tYW5kOiBzdHJpbmcpOiBzdHJpbmdbXSB7Ci0gIGNvbnN0IHByb2JlID0gYGYoKSB7IGZvciBhIGluICIkQCI7IGRvIHByaW50ZiAnJXNcXG4nICIkYSI7IGRvbmU7IH07ICR7c2hlbGxDb21tYW5kLnJlcGxhY2UoL15yaWcgLywgImYgIil9YDsKLSAgcmV0dXJuIGV4ZWNGaWxlU3luYygic2giLCBbIi1jIiwgcHJvYmVdLCB7IGVuY29kaW5nOiAidXRmLTgiIH0pLnNwbGl0KCJcbiIpLnNsaWNlKDAsIC0xKTsKLX0KK2NvbnN0IGNhc2VzID0gWworICBbIm15LXJpZyIsICJjaGF0cm9vbUBteS1yaWciXSwKKyAgWyJteSByaWciLCAiY2hhdHJvb21AbXkgcmlnIl0sCisgIFsiaXQncyIsICJjaGF0cm9vbUBpdCdzIl0sCisgIFsnc2F5ICJoaSInLCAnY2hhdHJvb21Ac2F5ICJoaSInXSwKKyAgWyJhO2IiLCAiY2hhdHJvb21AYTtiIl0sCisgIFsiYGlkYCIsICJjaGF0cm9vbUBgaWRgIl0sCisgIFsiJChwcmludGYgc2VudGluZWwpIiwgImNoYXRyb29tQCQocHJpbnRmIHNlbnRpbmVsKSJdLAorICBbImEkSE9NRSIsICJjaGF0cm9vbUBhJEhPTUUiXSwKKyAgWyItb3B0aW9uIiwgImNoYXRyb29tQC1vcHRpb24iXSwKKyAgWyJzaW5nbGUjdGFnIiwgImNoYXRyb29tQHNpbmdsZSN7bDojI310YWciXSwKKyAgWyJkb3VibGUjI3RhZyIsICJjaGF0cm9vbUBkb3VibGUje2w6IyN9I3tsOiMjfXRhZyJdLAorICBbInN0eWxlI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfVtmZz1yZWRddGFnIl0sCisgIFsic3R5bGUjI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfSN7bDojI31bZmc9cmVkXXRhZyJdLAorICBbImZvcm1hdCN7cGlkfSIsICJjaGF0cm9vbUBmb3JtYXQje2w6IyN9e3BpZH0iXSwKK10gYXMgY29uc3Q7CiAKIGRlc2NyaWJlKCJjaGF0cm9vbSB3YXRjaCAtLXRtdXggY29tbWFuZCIsICgpID0+IHsKLSAgaXQoImtlZXBzIGEgcGxhaW4gcmlnIG5hbWUgYXMgdGhlIHNlc3Npb24gc3VmZml4IGFuZCB0aGUgd2F0Y2hlciBhcmd1bWVudCIsICgpID0+IHsKLSAgICBjb25zdCBhcmdzID0gY2hhdHJvb21XYXRjaFRtdXhBcmdzKCJteS1yaWciKTsKLSAgICBleHBlY3QoYXJncy5zbGljZSgwLCA0KSkudG9FcXVhbChbIm5ldy1zZXNzaW9uIiwgIi1kIiwgIi1zIiwgImNoYXRyb29tQG15LXJpZyJdKTsKLSAgICBleHBlY3QoYXJnc1NlZW5CeVdhdGNoZXIoYXJnc1s0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCAibXktcmlnIl0pOworICBpdC5lYWNoKGNhc2VzKSgicGFzc2VzICVqIGFzIHNlcGFyYXRlLCBsaXRlcmFsIHdhdGNoZXIgYXJndW1lbnRzIiwgKHJpZywgc2Vzc2lvbkZvcm1hdCkgPT4geworICAgIGV4cGVjdChjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKSkudG9FcXVhbChbCisgICAgICAibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBzZXNzaW9uRm9ybWF0LCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnLAorICAgIF0pOwogICB9KTsKK30pOworCitjb25zdCBoYXNUbXV4ID0gcHJvY2Vzcy5wbGF0Zm9ybSAhPT0gIndpbjMyIiAmJiBzcGF3blN5bmMoInRtdXgiLCBbIi1WIl0pLnN0YXR1cyA9PT0gMDsKIAotICBpdC5lYWNoKFsibXkgcmlnIiwgIml0J3MiLCAnc2F5ICJoaSInLCAiJCh0b3VjaCAvdG1wL29wZW5yaWctcHduZWQpIiwgImBpZGAiLCAiYTtiIiwgImEkSE9NRSJdKSgKLSAgICAiZGVsaXZlcnMgJWogdG8gdGhlIHdhdGNoZXIgYXMgb25lIGxpdGVyYWwgYXJndW1lbnQiLAotICAgIChyaWcpID0+IHsKLSAgICAgIGV4cGVjdChhcmdzU2VlbkJ5V2F0Y2hlcihjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKVs0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCByaWddKTsKLSAgICB9LAotICApOworZGVzY3JpYmUuc2tpcElmKCFoYXNUbXV4KSgiY2hhdHJvb20gd2F0Y2ggbmF0aXZlIHRtdXgiLCAoKSA9PiB7CisgIGl0LmVhY2goY2FzZXMpKCJwcmVzZXJ2ZXMgJWogaW4gdGhlIHNlc3Npb24gbmFtZSBhbmQgbGF1bmNoZWQgYXJndiIsIGFzeW5jIChyaWcpID0+IHsKKyAgICBjb25zdCBkaXIgPSBta2R0ZW1wU3luYyhqb2luKHRtcGRpcigpLCAib3QtIikpOworICAgIGNvbnN0IHNvY2tldCA9IGpvaW4oZGlyLCAicyIpOworICAgIGNvbnN0IG91dHB1dCA9IGpvaW4oZGlyLCAiYXJncy5qc29uIik7CisgICAgY29uc3QgcHJvYmUgPSBqb2luKGRpciwgInByb2JlLmNqcyIpOworICAgIGNvbnN0IGV4ZWN1dGFibGUgPSBqb2luKGRpciwgInJpZyIpOworICAgIHdyaXRlRmlsZVN5bmMocHJvYmUsIGByZXF1aXJlKCJub2RlOmZzIikud3JpdGVGaWxlU3luYyhwcm9jZXNzLmVudi5PUEVOUklHX1RNVVhfVEVTVF9PVVRQVVQsIEpTT04uc3RyaW5naWZ5KHByb2Nlc3MuYXJndi5zbGljZSgyKSkpOyBzZXRJbnRlcnZhbCgoKSA9PiB7fSwgMTAwMCk7YCk7CisgICAgd3JpdGVGaWxlU3luYyhleGVjdXRhYmxlLCAnIyEvYmluL3NoXG5leGVjICIkT1BFTlJJR19UTVVYX1RFU1RfTk9ERSIgIiRPUEVOUklHX1RNVVhfVEVTVF9QUk9CRSIgIiRAIlxuJyk7CisgICAgY2htb2RTeW5jKGV4ZWN1dGFibGUsIDBvNzU1KTsKKyAgICB0cnkgeworICAgICAgZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgIi1mIiwgIi9kZXYvbnVsbCIsIC4uLmNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpXSwgeworICAgICAgICBlbnY6IHsKKyAgICAgICAgICAuLi5wcm9jZXNzLmVudiwKKyAgICAgICAgICBUTVVYOiAiIiwKKyAgICAgICAgICBQQVRIOiBgJHtkaXJ9OiR7cHJvY2Vzcy5lbnYuUEFUSCA/PyAiIn1gLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX05PREU6IHByb2Nlc3MuZXhlY1BhdGgsCisgICAgICAgICAgT1BFTlJJR19UTVVYX1RFU1RfUFJPQkU6IHByb2JlLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX09VVFBVVDogb3V0cHV0LAorICAgICAgICB9LAorICAgICAgfSk7CisgICAgICBmb3IgKGxldCBhdHRlbXB0ID0gMDsgYXR0ZW1wdCA8IDEwMCAmJiAhZXhpc3RzU3luYyhvdXRwdXQpOyBhdHRlbXB0KyspIGF3YWl0IGRlbGF5KDIwKTsKKyAgICAgIGV4cGVjdChleGlzdHNTeW5jKG91dHB1dCkpLnRvQmUodHJ1ZSk7CisgICAgICBleHBlY3QoZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgImxpc3Qtc2Vzc2lvbnMiLCAiLUYiLCAiI3tzZXNzaW9uX25hbWV9Il0sIHsgZW5jb2Rpbmc6ICJ1dGYtOCIgfSkudHJpbUVuZCgpKS50b0JlKGBjaGF0cm9vbUAke3JpZ31gKTsKKyAgICAgIGV4cGVjdChKU09OLnBhcnNlKHJlYWRGaWxlU3luYyhvdXRwdXQsICJ1dGYtOCIpKSkudG9FcXVhbChbImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXSk7CisgICAgfSBmaW5hbGx5IHsKKyAgICAgIHNwYXduU3luYygidG11eCIsIFsiLVMiLCBzb2NrZXQsICJraWxsLXNlcnZlciJdKTsKKyAgICAgIHJtU3luYyhkaXIsIHsgcmVjdXJzaXZlOiB0cnVlLCBmb3JjZTogdHJ1ZSB9KTsKKyAgICB9CisgIH0pOwogfSk7Cg=='');
+        assert hashlib.sha256(p).hexdigest()==''95a45a13d1cb66595b085e92992c3de36931a74961bd6bf3f12f27492602a6b8''
+
+        subprocess.run([''git'',''apply'',''--check'',''-''],input=p,check=True)
+
+        subprocess.run([''git'',''apply'',''-''],input=p,check=True)
+
+        pathlib.Path(''/tmp/openrig1415-expected.patch'').write_bytes(p)
+
+        pathlib.Path(''/tmp/openrig1415-files.json'').write_text(''{"packages/cli/src/commands/chatroom.ts": {"baseline_sha256": "a663d18fa0f5a8446e5b4ae49419c10fa8f38e286584ed3867558b07cd62b1c6",
+        "candidate_sha256": "2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom.ts"},
+        "packages/cli/test/chatroom-watch-tmux-args.test.ts": {"baseline_sha256": "e8fbdd008f59438eba68965f7c1d87cb9b68a5401d609472bed58aa6a0a2427d",
+        "candidate_sha256": "f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom-watch-tmux-args.test.ts"}}'')
+
+        '
+    - name: Strict candidate identity before native gates
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      env:
+        QUAL_PHASE: before
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: npm
+    - run: npm ci
+    - name: Installed package, daemon restart, and seeded durability failure
+      run: bash scripts/run-pr-scenarios.sh
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: installed-scenario-evidence
+        path: dist/pr-scenarios/
+        if-no-files-found: error
+    - name: Strict candidate identity after native gates
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      if: always()
+      env:
+        QUAL_PHASE: after
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: openrig1415-source-installed-scenario-${{ matrix.package }}-${{ github.run_id }}
+        path: ${{ runner.temp }}/source-identity-*.json
+        if-no-files-found: error
+  native-tmux35a:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: mvschwarz/openrig
+        ref: d93377f3f9d9728458127c7e8773484cfdd82dd6
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+    - name: Build pinned upstream tmux3.5a in runner temporary directory
+      shell: bash
+      run: 'set -euo pipefail
+
+        sudo apt-get update
+
+        sudo apt-get install -y libevent-dev libncurses-dev bison autoconf automake pkg-config
+
+        git clone --filter=blob:none https://github.com/tmux/tmux.git "$RUNNER_TEMP/tmux35a"
+
+        git -C "$RUNNER_TEMP/tmux35a" checkout --detach 549c35b06165f6ae023115eb76f83f2cbf945395
+
+        test "$(git -C "$RUNNER_TEMP/tmux35a" rev-parse HEAD)" = 549c35b06165f6ae023115eb76f83f2cbf945395
+
+        cd "$RUNNER_TEMP/tmux35a"
+
+        sh autogen.sh
+
+        ./configure --prefix="$RUNNER_TEMP/tmux35a-installed"
+
+        make -j2
+
+        make install
+
+        echo "$RUNNER_TEMP/tmux35a-installed/bin" >> "$GITHUB_PATH"
+
+        '
+    - run: tmux -V | tee "$RUNNER_TEMP/tmux-version.txt"; test "$(tmux -V)" = "tmux 3.5a"
+      shell: bash
+    - run: npm ci
+    - run: npm run build
+    - name: Apply tests-only packet for genuine source baseline
+      shell: python
+      run: 'import base64,hashlib,pathlib,subprocess,json
+
+        assert subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip()==''d93377f3f9d9728458127c7e8773484cfdd82dd6''
+
+        p=base64.b64decode(''ZGlmZiAtLWdpdCBhL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzIGIvcGFja2FnZXMvY2xpL3Rlc3QvY2hhdHJvb20td2F0Y2gtdG11eC1hcmdzLnRlc3QudHMKaW5kZXggODVjM2ZjZjRjNzQzMjIyZTA1ZGI3MTAwODZlOGE1MmNmMjAwNDNjNi4uYzZjODQ4YzM0YzI3YWRlNzRlNmVjYmRlZTY4ZDc1ZWMyMDg2OTZlMyAxMDA2NDQKLS0tIGEvcGFja2FnZXMvY2xpL3Rlc3QvY2hhdHJvb20td2F0Y2gtdG11eC1hcmdzLnRlc3QudHMKKysrIGIvcGFja2FnZXMvY2xpL3Rlc3QvY2hhdHJvb20td2F0Y2gtdG11eC1hcmdzLnRlc3QudHMKQEAgLTEsMjUgKzEsNjYgQEAKIGltcG9ydCB7IGRlc2NyaWJlLCBpdCwgZXhwZWN0IH0gZnJvbSAidml0ZXN0IjsKLWltcG9ydCB7IGV4ZWNGaWxlU3luYyB9IGZyb20gIm5vZGU6Y2hpbGRfcHJvY2VzcyI7CitpbXBvcnQgeyBleGVjRmlsZVN5bmMsIHNwYXduU3luYyB9IGZyb20gIm5vZGU6Y2hpbGRfcHJvY2VzcyI7CitpbXBvcnQgeyBjaG1vZFN5bmMsIGV4aXN0c1N5bmMsIG1rZHRlbXBTeW5jLCByZWFkRmlsZVN5bmMsIHJtU3luYywgd3JpdGVGaWxlU3luYyB9IGZyb20gIm5vZGU6ZnMiOworaW1wb3J0IHsgdG1wZGlyIH0gZnJvbSAibm9kZTpvcyI7CitpbXBvcnQgeyBqb2luIH0gZnJvbSAibm9kZTpwYXRoIjsKK2ltcG9ydCB7IHNldFRpbWVvdXQgYXMgZGVsYXkgfSBmcm9tICJub2RlOnRpbWVycy9wcm9taXNlcyI7CiBpbXBvcnQgeyBjaGF0cm9vbVdhdGNoVG11eEFyZ3MgfSBmcm9tICIuLi9zcmMvY29tbWFuZHMvY2hhdHJvb20uanMiOwogCi0vLyB0bXV4IHJ1bnMgaXRzIGxhc3QgYXJndW1lbnQgdGhyb3VnaCBgc2ggLWNgLiBTd2FwIHRoZSBsZWFkaW5nIGByaWdgIGZvciBhIGZ1bmN0aW9uIHRoYXQgcHJpbnRzCi0vLyBlYWNoIGFyZ3VtZW50IG9uIGl0cyBvd24gbGluZSB0byBzZWUgZXhhY3RseSB3aGF0IHRoZSB3YXRjaGVyIHdvdWxkIHJlY2VpdmUuCi1mdW5jdGlvbiBhcmdzU2VlbkJ5V2F0Y2hlcihzaGVsbENvbW1hbmQ6IHN0cmluZyk6IHN0cmluZ1tdIHsKLSAgY29uc3QgcHJvYmUgPSBgZigpIHsgZm9yIGEgaW4gIiRAIjsgZG8gcHJpbnRmICclc1xcbicgIiRhIjsgZG9uZTsgfTsgJHtzaGVsbENvbW1hbmQucmVwbGFjZSgvXnJpZyAvLCAiZiAiKX1gOwotICByZXR1cm4gZXhlY0ZpbGVTeW5jKCJzaCIsIFsiLWMiLCBwcm9iZV0sIHsgZW5jb2Rpbmc6ICJ1dGYtOCIgfSkuc3BsaXQoIlxuIikuc2xpY2UoMCwgLTEpOwotfQorY29uc3QgY2FzZXMgPSBbCisgIFsibXktcmlnIiwgImNoYXRyb29tQG15LXJpZyJdLAorICBbIm15IHJpZyIsICJjaGF0cm9vbUBteSByaWciXSwKKyAgWyJpdCdzIiwgImNoYXRyb29tQGl0J3MiXSwKKyAgWydzYXkgImhpIicsICdjaGF0cm9vbUBzYXkgImhpIiddLAorICBbImE7YiIsICJjaGF0cm9vbUBhO2IiXSwKKyAgWyJgaWRgIiwgImNoYXRyb29tQGBpZGAiXSwKKyAgWyIkKHByaW50ZiBzZW50aW5lbCkiLCAiY2hhdHJvb21AJChwcmludGYgc2VudGluZWwpIl0sCisgIFsiYSRIT01FIiwgImNoYXRyb29tQGEkSE9NRSJdLAorICBbIi1vcHRpb24iLCAiY2hhdHJvb21ALW9wdGlvbiJdLAorICBbInNpbmdsZSN0YWciLCAiY2hhdHJvb21Ac2luZ2xlI3tsOiMjfXRhZyJdLAorICBbImRvdWJsZSMjdGFnIiwgImNoYXRyb29tQGRvdWJsZSN7bDojI30je2w6IyN9dGFnIl0sCisgIFsic3R5bGUjW2ZnPXJlZF10YWciLCAiY2hhdHJvb21Ac3R5bGUje2w6IyN9W2ZnPXJlZF10YWciXSwKKyAgWyJzdHlsZSMjW2ZnPXJlZF10YWciLCAiY2hhdHJvb21Ac3R5bGUje2w6IyN9I3tsOiMjfVtmZz1yZWRddGFnIl0sCisgIFsiZm9ybWF0I3twaWR9IiwgImNoYXRyb29tQGZvcm1hdCN7bDojI317cGlkfSJdLAorXSBhcyBjb25zdDsKIAogZGVzY3JpYmUoImNoYXRyb29tIHdhdGNoIC0tdG11eCBjb21tYW5kIiwgKCkgPT4gewotICBpdCgia2VlcHMgYSBwbGFpbiByaWcgbmFtZSBhcyB0aGUgc2Vzc2lvbiBzdWZmaXggYW5kIHRoZSB3YXRjaGVyIGFyZ3VtZW50IiwgKCkgPT4gewotICAgIGNvbnN0IGFyZ3MgPSBjaGF0cm9vbVdhdGNoVG11eEFyZ3MoIm15LXJpZyIpOwotICAgIGV4cGVjdChhcmdzLnNsaWNlKDAsIDQpKS50b0VxdWFsKFsibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCAiY2hhdHJvb21AbXktcmlnIl0pOwotICAgIGV4cGVjdChhcmdzU2VlbkJ5V2F0Y2hlcihhcmdzWzRdISkpLnRvRXF1YWwoWyJjaGF0cm9vbSIsICJ3YXRjaCIsICJteS1yaWciXSk7CisgIGl0LmVhY2goY2FzZXMpKCJwYXNzZXMgJWogYXMgc2VwYXJhdGUsIGxpdGVyYWwgd2F0Y2hlciBhcmd1bWVudHMiLCAocmlnLCBzZXNzaW9uRm9ybWF0KSA9PiB7CisgICAgZXhwZWN0KGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpKS50b0VxdWFsKFsKKyAgICAgICJuZXctc2Vzc2lvbiIsICItZCIsICItcyIsIHNlc3Npb25Gb3JtYXQsICJyaWciLCAiY2hhdHJvb20iLCAid2F0Y2giLCAiLS0iLCByaWcsCisgICAgXSk7CiAgIH0pOworfSk7CisKK2NvbnN0IGhhc1RtdXggPSBwcm9jZXNzLnBsYXRmb3JtICE9PSAid2luMzIiICYmIHNwYXduU3luYygidG11eCIsIFsiLVYiXSkuc3RhdHVzID09PSAwOwogCi0gIGl0LmVhY2goWyJteSByaWciLCAiaXQncyIsICdzYXkgImhpIicsICIkKHRvdWNoIC90bXAvb3BlbnJpZy1wd25lZCkiLCAiYGlkYCIsICJhO2IiLCAiYSRIT01FIl0pKAotICAgICJkZWxpdmVycyAlaiB0byB0aGUgd2F0Y2hlciBhcyBvbmUgbGl0ZXJhbCBhcmd1bWVudCIsCi0gICAgKHJpZykgPT4gewotICAgICAgZXhwZWN0KGFyZ3NTZWVuQnlXYXRjaGVyKGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpWzRdISkpLnRvRXF1YWwoWyJjaGF0cm9vbSIsICJ3YXRjaCIsIHJpZ10pOwotICAgIH0sCi0gICk7CitkZXNjcmliZS5za2lwSWYoIWhhc1RtdXgpKCJjaGF0cm9vbSB3YXRjaCBuYXRpdmUgdG11eCIsICgpID0+IHsKKyAgaXQuZWFjaChjYXNlcykoInByZXNlcnZlcyAlaiBpbiB0aGUgc2Vzc2lvbiBuYW1lIGFuZCBsYXVuY2hlZCBhcmd2IiwgYXN5bmMgKHJpZykgPT4geworICAgIGNvbnN0IGRpciA9IG1rZHRlbXBTeW5jKGpvaW4odG1wZGlyKCksICJvdC0iKSk7CisgICAgY29uc3Qgc29ja2V0ID0gam9pbihkaXIsICJzIik7CisgICAgY29uc3Qgb3V0cHV0ID0gam9pbihkaXIsICJhcmdzLmpzb24iKTsKKyAgICBjb25zdCBwcm9iZSA9IGpvaW4oZGlyLCAicHJvYmUuY2pzIik7CisgICAgY29uc3QgZXhlY3V0YWJsZSA9IGpvaW4oZGlyLCAicmlnIik7CisgICAgd3JpdGVGaWxlU3luYyhwcm9iZSwgYHJlcXVpcmUoIm5vZGU6ZnMiKS53cml0ZUZpbGVTeW5jKHByb2Nlc3MuZW52Lk9QRU5SSUdfVE1VWF9URVNUX09VVFBVVCwgSlNPTi5zdHJpbmdpZnkocHJvY2Vzcy5hcmd2LnNsaWNlKDIpKSk7IHNldEludGVydmFsKCgpID0+IHt9LCAxMDAwKTtgKTsKKyAgICB3cml0ZUZpbGVTeW5jKGV4ZWN1dGFibGUsICcjIS9iaW4vc2hcbmV4ZWMgIiRPUEVOUklHX1RNVVhfVEVTVF9OT0RFIiAiJE9QRU5SSUdfVE1VWF9URVNUX1BST0JFIiAiJEAiXG4nKTsKKyAgICBjaG1vZFN5bmMoZXhlY3V0YWJsZSwgMG83NTUpOworICAgIHRyeSB7CisgICAgICBleGVjRmlsZVN5bmMoInRtdXgiLCBbIi1TIiwgc29ja2V0LCAiLWYiLCAiL2Rldi9udWxsIiwgLi4uY2hhdHJvb21XYXRjaFRtdXhBcmdzKHJpZyldLCB7CisgICAgICAgIGVudjogeworICAgICAgICAgIC4uLnByb2Nlc3MuZW52LAorICAgICAgICAgIFRNVVg6ICIiLAorICAgICAgICAgIFBBVEg6IGAke2Rpcn06JHtwcm9jZXNzLmVudi5QQVRIID8/ICIifWAsCisgICAgICAgICAgT1BFTlJJR19UTVVYX1RFU1RfTk9ERTogcHJvY2Vzcy5leGVjUGF0aCwKKyAgICAgICAgICBPUEVOUklHX1RNVVhfVEVTVF9QUk9CRTogcHJvYmUsCisgICAgICAgICAgT1BFTlJJR19UTVVYX1RFU1RfT1VUUFVUOiBvdXRwdXQsCisgICAgICAgIH0sCisgICAgICB9KTsKKyAgICAgIGZvciAobGV0IGF0dGVtcHQgPSAwOyBhdHRlbXB0IDwgMTAwICYmICFleGlzdHNTeW5jKG91dHB1dCk7IGF0dGVtcHQrKykgYXdhaXQgZGVsYXkoMjApOworICAgICAgZXhwZWN0KGV4aXN0c1N5bmMob3V0cHV0KSkudG9CZSh0cnVlKTsKKyAgICAgIGV4cGVjdChleGVjRmlsZVN5bmMoInRtdXgiLCBbIi1TIiwgc29ja2V0LCAibGlzdC1zZXNzaW9ucyIsICItRiIsICIje3Nlc3Npb25fbmFtZX0iXSwgeyBlbmNvZGluZzogInV0Zi04IiB9KS50cmltRW5kKCkpLnRvQmUoYGNoYXRyb29tQCR7cmlnfWApOworICAgICAgZXhwZWN0KEpTT04ucGFyc2UocmVhZEZpbGVTeW5jKG91dHB1dCwgInV0Zi04IikpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCAiLS0iLCByaWddKTsKKyAgICB9IGZpbmFsbHkgeworICAgICAgc3Bhd25TeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgImtpbGwtc2VydmVyIl0pOworICAgICAgcm1TeW5jKGRpciwgeyByZWN1cnNpdmU6IHRydWUsIGZvcmNlOiB0cnVlIH0pOworICAgIH0KKyAgfSk7CiB9KTsK'');
+        assert hashlib.sha256(p).hexdigest()==''6d46c825b00e7be1467f71d005149d2d1c361de5ba8dabb449741d88abb021ad''
+
+        subprocess.run([''git'',''apply'',''--check'',''-''],input=p,check=True)
+
+        subprocess.run([''git'',''apply'',''-''],input=p,check=True)
+
+        pathlib.Path(''/tmp/openrig1415-expected.patch'').write_bytes(p)
+
+        pathlib.Path(''/tmp/openrig1415-files.json'').write_text(''{"packages/cli/src/commands/chatroom.ts": {"baseline_sha256": "a663d18fa0f5a8446e5b4ae49419c10fa8f38e286584ed3867558b07cd62b1c6",
+        "candidate_sha256": "2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom.ts"},
+        "packages/cli/test/chatroom-watch-tmux-args.test.ts": {"baseline_sha256": "e8fbdd008f59438eba68965f7c1d87cb9b68a5401d609472bed58aa6a0a2427d",
+        "candidate_sha256": "f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom-watch-tmux-args.test.ts"}}'')
+
+        '
+    - name: Strict baseline pre-test identity
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/test/chatroom-watch-tmux-args.test.ts'': ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      env:
+        QUAL_PHASE: baseline-before
+    - name: Run exact double-hash baseline cases, retaining failure
+      shell: bash
+      run: 'set +e
+
+        npm exec -w packages/cli -- vitest run test/chatroom-watch-tmux-args.test.ts -t ''double##tag'' --reporter=json --outputFile="$RUNNER_TEMP/baseline-vitest.json"
+        > "$RUNNER_TEMP/baseline-vitest.log" 2>&1
+
+        status=$?
+
+        echo "$status" > "$RUNNER_TEMP/baseline-exit.txt"
+
+        cat "$RUNNER_TEMP/baseline-vitest.log"
+
+        exit 0
+
+        '
+    - name: Require two selected semantic failures, never infra or skips
+      shell: python
+      run: 'import json,pathlib,os
+
+        p=pathlib.Path(os.environ[''RUNNER_TEMP'']); r=json.loads((p/''baseline-vitest.json'').read_text()); assert (p/''baseline-exit.txt'').read_text().strip()==''1''
+
+        assert r[''numTotalTests'']==28 and r[''numFailedTests'']==2 and r[''numPassedTests'']==0 and r[''numPendingTests'']==26,r
+
+        selected=[a for t in r[''testResults''] for a in t[''assertionResults''] if a[''status'']!=''pending'']
+
+        assert len(selected)==2 and all(a[''status'']==''failed'' and ''double##tag'' in a[''fullName''] for a in selected)
+
+        assert any(''native tmux'' in a[''fullName''] and ''chatroom@double##tag'' in ''\n''.join(a[''failureMessages'']) for a in selected)
+
+        assert any(''passes'' in a[''fullName''] and ''literal watcher arguments'' in a[''fullName''] for a in selected)
+
+        assert all(''AssertionError'' in ''\n''.join(a[''failureMessages'']) for a in selected)
+
+        log=(p/''baseline-vitest.log'').read_text(); assert not any(x in log for x in [''Failed to load url'',''Cannot find module'',''SyntaxError'',''No
+        test files found''])
+
+        '
+    - name: Strict baseline post-test identity
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/test/chatroom-watch-tmux-args.test.ts'': ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      env:
+        QUAL_PHASE: baseline-after
+    - name: Restore only the tests-only baseline path
+      run: git restore -- packages/cli/test/chatroom-watch-tmux-args.test.ts
+    - name: Apply exact candidate packet
+      shell: python
+      run: 'import base64,hashlib,pathlib,subprocess,json
+
+        assert subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip()==''d93377f3f9d9728458127c7e8773484cfdd82dd6''
+
+        p=base64.b64decode(''ZGlmZiAtLWdpdCBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMgYi9wYWNrYWdlcy9jbGkvc3JjL2NvbW1hbmRzL2NoYXRyb29tLnRzCmluZGV4IGFiYTI2NmJkOThkMGU4ZmU4MTVlOWZlZDEzYjZjOTdkNWJiYTdkZTAuLjJhYjc5ZWE5N2FkZGZjNTk0NjI0NzM2NDA2MTBiZWJjMWVkN2UwNGMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvY2hhdHJvb20udHMKKysrIGIvcGFja2FnZXMvY2xpL3NyYy9jb21tYW5kcy9jaGF0cm9vbS50cwpAQCAtNywxMSArNywxMSBAQCBpbXBvcnQgdHlwZSB7IFN0YXR1c0RlcHMgfSBmcm9tICIuL3N0YXR1cy5qcyI7CiBpbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOwogaW1wb3J0IHsgc2hlbGxRdW90ZSB9IGZyb20gIi4uL2Nyb3NzLWhvc3QtZXhlY3V0b3IuanMiOwogCi0vKiogYXJndiBmb3IgdGhlIGRlZGljYXRlZCB0bXV4IHNlc3Npb24gdGhhdCBydW5zIGByaWcgY2hhdHJvb20gd2F0Y2hgLiB0bXV4IGhhbmRzIGl0cyBsYXN0IGFyZ3VtZW50IHRvCi0gKiAgYHNoIC1jYCwgc28gdGhlIHJpZyBuYW1lIGlzIHNpbmdsZS1xdW90ZWQ6IGEgbmFtZSB3aXRoIHNwYWNlcywgcXVvdGVzLCBgJGAgb3IgYmFja3RpY2tzIHJlYWNoZXMgdGhlCi0gKiAgd2F0Y2hlciBhcyBvbmUgbGl0ZXJhbCBhcmd1bWVudCBhbmQgaXMgbmV2ZXIgZXhwYW5kZWQgYnkgdGhlIHNoZWxsLiAqLworLyoqIGFyZ3YgZm9yIGEgZGVkaWNhdGVkIHRtdXggc2Vzc2lvbjsgbXVsdGlwbGUgY29tbWFuZCBhcmd1bWVudHMgYnlwYXNzIGl0cyBkZWZhdWx0IHNoZWxsLiAqLwogZXhwb3J0IGZ1bmN0aW9uIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWc6IHN0cmluZyk6IHN0cmluZ1tdIHsKLSAgcmV0dXJuIFsibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBgY2hhdHJvb21AJHtyaWd9YCwgYHJpZyBjaGF0cm9vbSB3YXRjaCAke3NoZWxsUXVvdGUocmlnKX1gXTsKKyAgLy8gTGl0ZXJhbC1mb3JtYXQgZXhwYW5zaW9ucyBhbHNvIHByZXNlcnZlIGhhc2hlcyBhZGphY2VudCB0byB0bXV4J3Mgc3BlY2lhbCAjWy4uLl0gc3ludGF4LgorICBjb25zdCBzZXNzaW9uTmFtZSA9IGBjaGF0cm9vbUAke3JpZ31gLnJlcGxhY2VBbGwoIiMiLCAiI3tsOiMjfSIpOworICByZXR1cm4gWyJuZXctc2Vzc2lvbiIsICItZCIsICItcyIsIHNlc3Npb25OYW1lLCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXTsKIH0KIAogaW50ZXJmYWNlIFJpZ1N1bW1hcnkgewpAQCAtMTgyLDcgKzE4Miw3IEBAIGV4cG9ydCBmdW5jdGlvbiBjaGF0cm9vbUNvbW1hbmQoZGVwc092ZXJyaWRlPzogU3RhdHVzRGVwcyk6IENvbW1hbmQgewogICAgICAgICB0cnkgewogICAgICAgICAgIGV4ZWNGaWxlU3luYygidG11eCIsIGNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpLCB7IHN0ZGlvOiAiaWdub3JlIiB9KTsKICAgICAgICAgICBjb25zb2xlLmxvZyhgU3RhcnRlZCB3YXRjaCBpbiB0bXV4IHNlc3Npb246ICR7c2Vzc2lvbk5hbWV9YCk7Ci0gICAgICAgICAgY29uc29sZS5sb2coYEF0dGFjaCB3aXRoOiB0bXV4IGF0dGFjaCAtdCAke3Nlc3Npb25OYW1lfWApOworICAgICAgICAgIGNvbnNvbGUubG9nKGBBdHRhY2ggd2l0aDogdG11eCBhdHRhY2ggLXQgJHtzaGVsbFF1b3RlKHNlc3Npb25OYW1lKX1gKTsKICAgICAgICAgfSBjYXRjaCB7CiAgICAgICAgICAgY29uc29sZS5lcnJvcihgRmFpbGVkIHRvIGNyZWF0ZSB0bXV4IHNlc3Npb24gJyR7c2Vzc2lvbk5hbWV9Jy4gSXQgbWF5IGFscmVhZHkgZXhpc3QuYCk7CiAgICAgICAgICAgcHJvY2Vzcy5leGl0Q29kZSA9IDE7CmRpZmYgLS1naXQgYS9wYWNrYWdlcy9jbGkvdGVzdC9jaGF0cm9vbS13YXRjaC10bXV4LWFyZ3MudGVzdC50cyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCmluZGV4IDg1YzNmY2Y0Yzc0MzIyMmUwNWRiNzEwMDg2ZThhNTJjZjIwMDQzYzYuLmM2Yzg0OGMzNGMyN2FkZTc0ZTZlY2JkZWU2OGQ3NWVjMjA4Njk2ZTMgMTAwNjQ0Ci0tLSBhL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCisrKyBiL3BhY2thZ2VzL2NsaS90ZXN0L2NoYXRyb29tLXdhdGNoLXRtdXgtYXJncy50ZXN0LnRzCkBAIC0xLDI1ICsxLDY2IEBACiBpbXBvcnQgeyBkZXNjcmliZSwgaXQsIGV4cGVjdCB9IGZyb20gInZpdGVzdCI7Ci1pbXBvcnQgeyBleGVjRmlsZVN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgZXhlY0ZpbGVTeW5jLCBzcGF3blN5bmMgfSBmcm9tICJub2RlOmNoaWxkX3Byb2Nlc3MiOworaW1wb3J0IHsgY2htb2RTeW5jLCBleGlzdHNTeW5jLCBta2R0ZW1wU3luYywgcmVhZEZpbGVTeW5jLCBybVN5bmMsIHdyaXRlRmlsZVN5bmMgfSBmcm9tICJub2RlOmZzIjsKK2ltcG9ydCB7IHRtcGRpciB9IGZyb20gIm5vZGU6b3MiOworaW1wb3J0IHsgam9pbiB9IGZyb20gIm5vZGU6cGF0aCI7CitpbXBvcnQgeyBzZXRUaW1lb3V0IGFzIGRlbGF5IH0gZnJvbSAibm9kZTp0aW1lcnMvcHJvbWlzZXMiOwogaW1wb3J0IHsgY2hhdHJvb21XYXRjaFRtdXhBcmdzIH0gZnJvbSAiLi4vc3JjL2NvbW1hbmRzL2NoYXRyb29tLmpzIjsKIAotLy8gdG11eCBydW5zIGl0cyBsYXN0IGFyZ3VtZW50IHRocm91Z2ggYHNoIC1jYC4gU3dhcCB0aGUgbGVhZGluZyBgcmlnYCBmb3IgYSBmdW5jdGlvbiB0aGF0IHByaW50cwotLy8gZWFjaCBhcmd1bWVudCBvbiBpdHMgb3duIGxpbmUgdG8gc2VlIGV4YWN0bHkgd2hhdCB0aGUgd2F0Y2hlciB3b3VsZCByZWNlaXZlLgotZnVuY3Rpb24gYXJnc1NlZW5CeVdhdGNoZXIoc2hlbGxDb21tYW5kOiBzdHJpbmcpOiBzdHJpbmdbXSB7Ci0gIGNvbnN0IHByb2JlID0gYGYoKSB7IGZvciBhIGluICIkQCI7IGRvIHByaW50ZiAnJXNcXG4nICIkYSI7IGRvbmU7IH07ICR7c2hlbGxDb21tYW5kLnJlcGxhY2UoL15yaWcgLywgImYgIil9YDsKLSAgcmV0dXJuIGV4ZWNGaWxlU3luYygic2giLCBbIi1jIiwgcHJvYmVdLCB7IGVuY29kaW5nOiAidXRmLTgiIH0pLnNwbGl0KCJcbiIpLnNsaWNlKDAsIC0xKTsKLX0KK2NvbnN0IGNhc2VzID0gWworICBbIm15LXJpZyIsICJjaGF0cm9vbUBteS1yaWciXSwKKyAgWyJteSByaWciLCAiY2hhdHJvb21AbXkgcmlnIl0sCisgIFsiaXQncyIsICJjaGF0cm9vbUBpdCdzIl0sCisgIFsnc2F5ICJoaSInLCAnY2hhdHJvb21Ac2F5ICJoaSInXSwKKyAgWyJhO2IiLCAiY2hhdHJvb21AYTtiIl0sCisgIFsiYGlkYCIsICJjaGF0cm9vbUBgaWRgIl0sCisgIFsiJChwcmludGYgc2VudGluZWwpIiwgImNoYXRyb29tQCQocHJpbnRmIHNlbnRpbmVsKSJdLAorICBbImEkSE9NRSIsICJjaGF0cm9vbUBhJEhPTUUiXSwKKyAgWyItb3B0aW9uIiwgImNoYXRyb29tQC1vcHRpb24iXSwKKyAgWyJzaW5nbGUjdGFnIiwgImNoYXRyb29tQHNpbmdsZSN7bDojI310YWciXSwKKyAgWyJkb3VibGUjI3RhZyIsICJjaGF0cm9vbUBkb3VibGUje2w6IyN9I3tsOiMjfXRhZyJdLAorICBbInN0eWxlI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfVtmZz1yZWRddGFnIl0sCisgIFsic3R5bGUjI1tmZz1yZWRddGFnIiwgImNoYXRyb29tQHN0eWxlI3tsOiMjfSN7bDojI31bZmc9cmVkXXRhZyJdLAorICBbImZvcm1hdCN7cGlkfSIsICJjaGF0cm9vbUBmb3JtYXQje2w6IyN9e3BpZH0iXSwKK10gYXMgY29uc3Q7CiAKIGRlc2NyaWJlKCJjaGF0cm9vbSB3YXRjaCAtLXRtdXggY29tbWFuZCIsICgpID0+IHsKLSAgaXQoImtlZXBzIGEgcGxhaW4gcmlnIG5hbWUgYXMgdGhlIHNlc3Npb24gc3VmZml4IGFuZCB0aGUgd2F0Y2hlciBhcmd1bWVudCIsICgpID0+IHsKLSAgICBjb25zdCBhcmdzID0gY2hhdHJvb21XYXRjaFRtdXhBcmdzKCJteS1yaWciKTsKLSAgICBleHBlY3QoYXJncy5zbGljZSgwLCA0KSkudG9FcXVhbChbIm5ldy1zZXNzaW9uIiwgIi1kIiwgIi1zIiwgImNoYXRyb29tQG15LXJpZyJdKTsKLSAgICBleHBlY3QoYXJnc1NlZW5CeVdhdGNoZXIoYXJnc1s0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCAibXktcmlnIl0pOworICBpdC5lYWNoKGNhc2VzKSgicGFzc2VzICVqIGFzIHNlcGFyYXRlLCBsaXRlcmFsIHdhdGNoZXIgYXJndW1lbnRzIiwgKHJpZywgc2Vzc2lvbkZvcm1hdCkgPT4geworICAgIGV4cGVjdChjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKSkudG9FcXVhbChbCisgICAgICAibmV3LXNlc3Npb24iLCAiLWQiLCAiLXMiLCBzZXNzaW9uRm9ybWF0LCAicmlnIiwgImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnLAorICAgIF0pOwogICB9KTsKK30pOworCitjb25zdCBoYXNUbXV4ID0gcHJvY2Vzcy5wbGF0Zm9ybSAhPT0gIndpbjMyIiAmJiBzcGF3blN5bmMoInRtdXgiLCBbIi1WIl0pLnN0YXR1cyA9PT0gMDsKIAotICBpdC5lYWNoKFsibXkgcmlnIiwgIml0J3MiLCAnc2F5ICJoaSInLCAiJCh0b3VjaCAvdG1wL29wZW5yaWctcHduZWQpIiwgImBpZGAiLCAiYTtiIiwgImEkSE9NRSJdKSgKLSAgICAiZGVsaXZlcnMgJWogdG8gdGhlIHdhdGNoZXIgYXMgb25lIGxpdGVyYWwgYXJndW1lbnQiLAotICAgIChyaWcpID0+IHsKLSAgICAgIGV4cGVjdChhcmdzU2VlbkJ5V2F0Y2hlcihjaGF0cm9vbVdhdGNoVG11eEFyZ3MocmlnKVs0XSEpKS50b0VxdWFsKFsiY2hhdHJvb20iLCAid2F0Y2giLCByaWddKTsKLSAgICB9LAotICApOworZGVzY3JpYmUuc2tpcElmKCFoYXNUbXV4KSgiY2hhdHJvb20gd2F0Y2ggbmF0aXZlIHRtdXgiLCAoKSA9PiB7CisgIGl0LmVhY2goY2FzZXMpKCJwcmVzZXJ2ZXMgJWogaW4gdGhlIHNlc3Npb24gbmFtZSBhbmQgbGF1bmNoZWQgYXJndiIsIGFzeW5jIChyaWcpID0+IHsKKyAgICBjb25zdCBkaXIgPSBta2R0ZW1wU3luYyhqb2luKHRtcGRpcigpLCAib3QtIikpOworICAgIGNvbnN0IHNvY2tldCA9IGpvaW4oZGlyLCAicyIpOworICAgIGNvbnN0IG91dHB1dCA9IGpvaW4oZGlyLCAiYXJncy5qc29uIik7CisgICAgY29uc3QgcHJvYmUgPSBqb2luKGRpciwgInByb2JlLmNqcyIpOworICAgIGNvbnN0IGV4ZWN1dGFibGUgPSBqb2luKGRpciwgInJpZyIpOworICAgIHdyaXRlRmlsZVN5bmMocHJvYmUsIGByZXF1aXJlKCJub2RlOmZzIikud3JpdGVGaWxlU3luYyhwcm9jZXNzLmVudi5PUEVOUklHX1RNVVhfVEVTVF9PVVRQVVQsIEpTT04uc3RyaW5naWZ5KHByb2Nlc3MuYXJndi5zbGljZSgyKSkpOyBzZXRJbnRlcnZhbCgoKSA9PiB7fSwgMTAwMCk7YCk7CisgICAgd3JpdGVGaWxlU3luYyhleGVjdXRhYmxlLCAnIyEvYmluL3NoXG5leGVjICIkT1BFTlJJR19UTVVYX1RFU1RfTk9ERSIgIiRPUEVOUklHX1RNVVhfVEVTVF9QUk9CRSIgIiRAIlxuJyk7CisgICAgY2htb2RTeW5jKGV4ZWN1dGFibGUsIDBvNzU1KTsKKyAgICB0cnkgeworICAgICAgZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgIi1mIiwgIi9kZXYvbnVsbCIsIC4uLmNoYXRyb29tV2F0Y2hUbXV4QXJncyhyaWcpXSwgeworICAgICAgICBlbnY6IHsKKyAgICAgICAgICAuLi5wcm9jZXNzLmVudiwKKyAgICAgICAgICBUTVVYOiAiIiwKKyAgICAgICAgICBQQVRIOiBgJHtkaXJ9OiR7cHJvY2Vzcy5lbnYuUEFUSCA/PyAiIn1gLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX05PREU6IHByb2Nlc3MuZXhlY1BhdGgsCisgICAgICAgICAgT1BFTlJJR19UTVVYX1RFU1RfUFJPQkU6IHByb2JlLAorICAgICAgICAgIE9QRU5SSUdfVE1VWF9URVNUX09VVFBVVDogb3V0cHV0LAorICAgICAgICB9LAorICAgICAgfSk7CisgICAgICBmb3IgKGxldCBhdHRlbXB0ID0gMDsgYXR0ZW1wdCA8IDEwMCAmJiAhZXhpc3RzU3luYyhvdXRwdXQpOyBhdHRlbXB0KyspIGF3YWl0IGRlbGF5KDIwKTsKKyAgICAgIGV4cGVjdChleGlzdHNTeW5jKG91dHB1dCkpLnRvQmUodHJ1ZSk7CisgICAgICBleHBlY3QoZXhlY0ZpbGVTeW5jKCJ0bXV4IiwgWyItUyIsIHNvY2tldCwgImxpc3Qtc2Vzc2lvbnMiLCAiLUYiLCAiI3tzZXNzaW9uX25hbWV9Il0sIHsgZW5jb2Rpbmc6ICJ1dGYtOCIgfSkudHJpbUVuZCgpKS50b0JlKGBjaGF0cm9vbUAke3JpZ31gKTsKKyAgICAgIGV4cGVjdChKU09OLnBhcnNlKHJlYWRGaWxlU3luYyhvdXRwdXQsICJ1dGYtOCIpKSkudG9FcXVhbChbImNoYXRyb29tIiwgIndhdGNoIiwgIi0tIiwgcmlnXSk7CisgICAgfSBmaW5hbGx5IHsKKyAgICAgIHNwYXduU3luYygidG11eCIsIFsiLVMiLCBzb2NrZXQsICJraWxsLXNlcnZlciJdKTsKKyAgICAgIHJtU3luYyhkaXIsIHsgcmVjdXJzaXZlOiB0cnVlLCBmb3JjZTogdHJ1ZSB9KTsKKyAgICB9CisgIH0pOwogfSk7Cg=='');
+        assert hashlib.sha256(p).hexdigest()==''95a45a13d1cb66595b085e92992c3de36931a74961bd6bf3f12f27492602a6b8''
+
+        subprocess.run([''git'',''apply'',''--check'',''-''],input=p,check=True)
+
+        subprocess.run([''git'',''apply'',''-''],input=p,check=True)
+
+        pathlib.Path(''/tmp/openrig1415-expected.patch'').write_bytes(p)
+
+        pathlib.Path(''/tmp/openrig1415-files.json'').write_text(''{"packages/cli/src/commands/chatroom.ts": {"baseline_sha256": "a663d18fa0f5a8446e5b4ae49419c10fa8f38e286584ed3867558b07cd62b1c6",
+        "candidate_sha256": "2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom.ts"},
+        "packages/cli/test/chatroom-watch-tmux-args.test.ts": {"baseline_sha256": "e8fbdd008f59438eba68965f7c1d87cb9b68a5401d609472bed58aa6a0a2427d",
+        "candidate_sha256": "f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558", "snapshot": "/Users/rudycelekli/Downloads/RLGYM/upstream-prs-2026-09/campaign-records/daily-runs/20261020T125951Z-heartbeat/lane-3/openrig1415/candidate-chatroom-watch-tmux-args.test.ts"}}'')
+
+        '
+    - name: Strict candidate native pre-test identity
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      env:
+        QUAL_PHASE: candidate-before
+    - name: Run all fourteen native cases and fourteen exact argv cases
+      run: npm exec -w packages/cli -- vitest run test/chatroom-watch-tmux-args.test.ts --reporter=json --outputFile="$RUNNER_TEMP/candidate-vitest.json"
+    - name: Require all28 focused tests executed and passed
+      shell: python
+      run: 'import json,pathlib,os
+
+        p=pathlib.Path(os.environ[''RUNNER_TEMP'']);r=json.loads((p/''candidate-vitest.json'').read_text());assert r[''numTotalTests'']==28 and
+        r[''numPassedTests'']==28 and r[''numFailedTests'']==0 and r[''numPendingTests'']==0,r
+
+        selected=[a for t in r[''testResults''] for a in t[''assertionResults'']];assert len(selected)==28 and all(a[''status'']==''passed'' for
+        a in selected)
+
+        assert sum(''native tmux'' in a[''fullName''] for a in selected)==14
+
+        '
+    - name: Strict candidate native final identity
+      shell: python
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        expected={''packages/cli/src/commands/chatroom.ts'': ''2cdee3fa5f191bb17b2a988570801d42bc06f9bda38352eb09801766ecb13c3a'', ''packages/cli/test/chatroom-watch-tmux-args.test.ts'':
+        ''f23aa6acf04376b0f3da42233cbe7461bbebbc4912e4ad0e27ec132afd9c5558''}
+
+        for p,h in expected.items(): assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h,(p,''source bytes changed'')
+
+        actual=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert actual==pathlib.Path(''/tmp/openrig1415-expected.patch'').read_bytes(),''canonical patch/path identity changed''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''],''source-identity-''+os.environ.get(''QUAL_PHASE'',''unknown'')+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(actual).hexdigest(),''files'':expected},indent=2))
+
+        '
+      if: always()
+      env:
+        QUAL_PHASE: candidate-after
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: openrig1415-tmux35a-${{ github.run_id }}
+        path: '${{ runner.temp }}/source-identity-*.json
+
+          ${{ runner.temp }}/*vitest*
+
+          ${{ runner.temp }}/baseline-exit.txt
+
+          ${{ runner.temp }}/tmux-version.txt'
+        if-no-files-found: error
