@@ -1,139 +1,177 @@
-name: Tests
-
-# Builds, type-checks and runs every test suite on a clean GitHub runner, and records the file
-# list each published package would contain. Each suite is its own job so one failure does not
-# hide the others. No provider credentials or operator configuration are supplied.
-# Package suites deny external networking; scenario runtime has no external route.
-
-on:
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
-
+name: OpenRig1416 focused actual MCP proof
+'on':
+  workflow_dispatch: {}
 permissions:
   contents: read
-
-concurrency:
-  group: tests-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  build-and-package:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - name: Record the published file list of each package
-        run: |
-          set -euo pipefail
-          mkdir -p pack-lists
-          for p in cli daemon tui; do
-            (cd packages/$p && npm pack --dry-run --json --ignore-scripts) \
-              | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const f of JSON.parse(s)[0].files)console.log(f.path)})' \
-              | sort > pack-lists/$p.txt
-            echo "$p: $(wc -l < pack-lists/$p.txt) files"
-          done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pack-lists
-          path: pack-lists/
-
-  typecheck:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-
-  repo-checks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run test:repo
-
-  package-tests:
-    # macOS, the platform OpenRig runs on: several daemon and cli tests read macOS ps columns,
-    # file-inode behaviour and release tags.
+  focused-native:
     runs-on: macos-latest
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        package: [daemon, cli, tui, ui]
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: brew install tmux
-      - run: npm ci
-      - name: Build the packages the tests import
-        run: npm run build
-      - name: Run the suite without ambient credentials or external network
-        run: |
-          suite_root=$(mktemp -d "$RUNNER_TEMP/opr-test.XXXXXX")
-          suite_root=$(cd "$suite_root" && pwd -P)
-          mkdir -p "$suite_root/home" "$suite_root/bin"
-          # Same system bytes, nonprivileged mode; no system file is changed.
-          /usr/bin/install -m 0755 /bin/ps "$suite_root/bin/ps"
-          # Only this job's temporary sockets (including tmux) are reachable.
-          env -i HOME="$suite_root/home" PATH="$PATH" TMPDIR="$suite_root" TMUX_TMPDIR="$suite_root" \
-            CI=true TERM=xterm-256color \
-            sandbox-exec -D IPC_ROOT="$suite_root" -p '(version 1)(allow default)(deny network-outbound)(allow network-outbound (remote ip "localhost:*"))(allow network-outbound (subpath (param "IPC_ROOT")))' \
-            /bin/bash -s "${{ matrix.package }}" <<'SUITE'
-          set -euo pipefail
-          node scripts/ci-macos-process-probe.mjs
-          # The production readers use bare ps. Select real system bytes only after
-          # self/owned-child observation and network/IPC confinement are proved.
-          export PATH="$TMPDIR/bin:$PATH"
-          test "$(command -v ps)" = "$TMPDIR/bin/ps"
-          exec npm run test -w "packages/$1"
-          SUITE
+    - uses: actions/checkout@v4
+      with:
+        repository: mvschwarz/openrig
+        ref: fbca021e59906e197f3fa835ec932801886c6d76
+        persist-credentials: false
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: npm
+    - run: npm ci
+    - run: npm run build
+    - name: Apply exact baseline packet
+      shell: python
+      run: 'import pathlib,subprocess,base64,hashlib
 
-  installed-scenario:
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - name: Installed package, daemon restart, and seeded durability failure
-        run: bash scripts/run-pr-scenarios.sh
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: installed-scenario-evidence
-          path: dist/pr-scenarios/
-          if-no-files-found: error
+        assert subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip()==''fbca021e59906e197f3fa835ec932801886c6d76''
+
+        subprocess.run([''git'',''reset'',''--hard'',''HEAD''],check=True)
+
+        p=base64.b64decode(''ZGlmZiAtLWdpdCBhL3BhY2thZ2VzL2NsaS90ZXN0L21jcC1zZXJ2ZS1wb3J0LW5hdGl2ZS50ZXN0LnRzIGIvcGFja2FnZXMvY2xpL3Rlc3QvbWNwLXNlcnZlLXBvcnQtbmF0aXZlLnRlc3QudHMKbmV3IGZpbGUgbW9kZSAxMDA2NDQKaW5kZXggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMC4uZDI1MzBkNmJkN2JjYjhhODMxNTY5NjQ5YmE5NzkyN2NlYzYwM2FjMgotLS0gL2Rldi9udWxsCisrKyBiL3BhY2thZ2VzL2NsaS90ZXN0L21jcC1zZXJ2ZS1wb3J0LW5hdGl2ZS50ZXN0LnRzCkBAIC0wLDAgKzEsNTYgQEAKK2ltcG9ydCB7IGRlc2NyaWJlLCBpdCwgZXhwZWN0IH0gZnJvbSAidml0ZXN0IjsKK2ltcG9ydCB7IHNwYXduIH0gZnJvbSAibm9kZTpjaGlsZF9wcm9jZXNzIjsKKworYXN5bmMgZnVuY3Rpb24gcHJvYmUocG9ydDogc3RyaW5nKSB7CisgIGNvbnN0IHNvdXJjZSA9IG5ldyBVUkwoIi4uL3NyYy9jb21tYW5kcy9tY3AudHMiLCBpbXBvcnQubWV0YS51cmwpLmhyZWY7CisgIGNvbnN0IGNsaWVudCA9IG5ldyBVUkwoIi4uL3NyYy9jbGllbnQudHMiLCBpbXBvcnQubWV0YS51cmwpLmhyZWY7CisgIGNvbnN0IHNjcmlwdCA9IGBpbXBvcnQgeyBtY3BDb21tYW5kIH0gZnJvbSAke0pTT04uc3RyaW5naWZ5KHNvdXJjZSl9OyBpbXBvcnQgeyBEYWVtb25DbGllbnQgfSBmcm9tICR7SlNPTi5zdHJpbmdpZnkoY2xpZW50KX07IGF3YWl0IG1jcENvbW1hbmQoeyBsaWZlY3ljbGVEZXBzOiB7fSwgY2xpZW50RmFjdG9yeTogdXJsID0+IHsgY29uc29sZS5lcnJvcigibmF0aXZlLWNsaWVudC11cmw6IiArIHVybCk7IHJldHVybiBuZXcgRGFlbW9uQ2xpZW50KHVybCk7IH0gfSkucGFyc2VBc3luYyhbInNlcnZlIiwgIi0tcG9ydCIsICR7SlNPTi5zdHJpbmdpZnkocG9ydCl9XSwgeyBmcm9tOiAidXNlciIgfSk7YDsKKyAgY29uc3QgY2hpbGQgPSBzcGF3bihwcm9jZXNzLmV4ZWNQYXRoLCBbIi0taW1wb3J0IiwgInRzeCIsICItLWlucHV0LXR5cGU9bW9kdWxlIiwgIi1lIiwgc2NyaXB0XSwgeyBzdGRpbzogWyJwaXBlIiwgInBpcGUiLCAicGlwZSJdIH0pOworICBsZXQgc3Rkb3V0ID0gIiIsIHN0ZGVyciA9ICIiLCBwZW5kaW5nID0gIiIsIGluaXRpYWxpemVkID0gZmFsc2UsIGxpc3RlZCA9IGZhbHNlLCB0aW1lZE91dCA9IGZhbHNlOworICBjb25zdCBtZXNzYWdlczogQXJyYXk8UmVjb3JkPHN0cmluZywgdW5rbm93bj4+ID0gW107CisgIGNvbnN0IHRpbWVyID0gc2V0VGltZW91dCgoKSA9PiB7IHRpbWVkT3V0ID0gdHJ1ZTsgY2hpbGQua2lsbCgiU0lHS0lMTCIpOyB9LCAxMF8wMDApOworICBjaGlsZC5zdGRpbi5vbigiZXJyb3IiLCAoKSA9PiB7fSk7CisgIGNoaWxkLnN0ZGVyci5vbigiZGF0YSIsIGIgPT4geyBzdGRlcnIgKz0gYjsgfSk7CisgIGNoaWxkLnN0ZG91dC5vbigiZGF0YSIsIGIgPT4geworICAgIHN0ZG91dCArPSBiOyBwZW5kaW5nICs9IGI7CisgICAgd2hpbGUgKHBlbmRpbmcuaW5jbHVkZXMoIlxuIikpIHsKKyAgICAgIGNvbnN0IGkgPSBwZW5kaW5nLmluZGV4T2YoIlxuIik7IGNvbnN0IGxpbmUgPSBwZW5kaW5nLnNsaWNlKDAsIGkpOyBwZW5kaW5nID0gcGVuZGluZy5zbGljZShpICsgMSk7CisgICAgICBsZXQgbWVzc2FnZTogUmVjb3JkPHN0cmluZywgdW5rbm93bj47CisgICAgICB0cnkgeyBtZXNzYWdlID0gSlNPTi5wYXJzZShsaW5lKTsgfSBjYXRjaCB7IGNoaWxkLmtpbGwoIlNJR0tJTEwiKTsgcmV0dXJuOyB9CisgICAgICBtZXNzYWdlcy5wdXNoKG1lc3NhZ2UpOworICAgICAgaWYgKG1lc3NhZ2UuaWQgPT09IDEgJiYgbWVzc2FnZS5yZXN1bHQpIHsKKyAgICAgICAgaW5pdGlhbGl6ZWQgPSB0cnVlOworICAgICAgICBjaGlsZC5zdGRpbi53cml0ZShKU09OLnN0cmluZ2lmeSh7IGpzb25ycGM6ICIyLjAiLCBtZXRob2Q6ICJub3RpZmljYXRpb25zL2luaXRpYWxpemVkIiB9KSArICJcbiIpOworICAgICAgICBjaGlsZC5zdGRpbi53cml0ZShKU09OLnN0cmluZ2lmeSh7IGpzb25ycGM6ICIyLjAiLCBpZDogMiwgbWV0aG9kOiAidG9vbHMvbGlzdCIsIHBhcmFtczoge30gfSkgKyAiXG4iKTsKKyAgICAgIH0KKyAgICAgIGlmIChtZXNzYWdlLmlkID09PSAyICYmIG1lc3NhZ2UucmVzdWx0KSB7IGxpc3RlZCA9IHRydWU7IGNoaWxkLnN0ZGluLmVuZCgpOyB9CisgICAgfQorICB9KTsKKyAgY2hpbGQuc3RkaW4ud3JpdGUoSlNPTi5zdHJpbmdpZnkoeyBqc29ucnBjOiAiMi4wIiwgaWQ6IDEsIG1ldGhvZDogImluaXRpYWxpemUiLCBwYXJhbXM6IHsgcHJvdG9jb2xWZXJzaW9uOiAiMjAyNC0xMS0wNSIsIGNhcGFiaWxpdGllczoge30sIGNsaWVudEluZm86IHsgbmFtZTogIm93bmVkLXBvcnQtcHJvYmUiLCB2ZXJzaW9uOiAiMSIgfSB9IH0pICsgIlxuIik7CisgIGNvbnN0IGNvZGUgPSBhd2FpdCBuZXcgUHJvbWlzZTxudW1iZXIgfCBudWxsPigocmVzb2x2ZSwgcmVqZWN0KSA9PiB7IGNoaWxkLm9uY2UoImNsb3NlIiwgcmVzb2x2ZSk7IGNoaWxkLm9uY2UoImVycm9yIiwgcmVqZWN0KTsgfSk7CisgIGNsZWFyVGltZW91dCh0aW1lcik7CisgIHJldHVybiB7IGNvZGUsIHN0ZG91dCwgc3RkZXJyLCBtZXNzYWdlcywgaW5pdGlhbGl6ZWQsIGxpc3RlZCwgdGltZWRPdXQsIHBlbmRpbmcgfTsKK30KKworZGVzY3JpYmUoIm5hdGl2ZSBNQ1Agc3RkaW8gcG9ydCBzdGFydHVwIiwgKCkgPT4geworICBpdC5lYWNoKFsiMCIsICItMSIsICI2NTUzNiIsICI5OTk5OSJdKSgiaW5pdGlhbGl6ZXMgYW5kIGxpc3RzIHRvb2xzIHdpdGggJXMgd2hpbGUgd2FybmluZyBvbmx5IG9uIHN0ZGVyciIsIGFzeW5jIHBvcnQgPT4geworICAgIGNvbnN0IHIgPSBhd2FpdCBwcm9iZShwb3J0KTsKKyAgICBleHBlY3QoeyBjb2RlOiByLmNvZGUsIGluaXRpYWxpemVkOiByLmluaXRpYWxpemVkLCBsaXN0ZWQ6IHIubGlzdGVkLCB0aW1lZE91dDogci50aW1lZE91dCwgcGVuZGluZzogci5wZW5kaW5nIH0pLnRvRXF1YWwoeyBjb2RlOiAwLCBpbml0aWFsaXplZDogdHJ1ZSwgbGlzdGVkOiB0cnVlLCB0aW1lZE91dDogZmFsc2UsIHBlbmRpbmc6ICIiIH0pOworICAgIGV4cGVjdChyLnN0ZGVycikudG9Db250YWluKGBuYXRpdmUtY2xpZW50LXVybDpodHRwOi8vMTI3LjAuMC4xOiR7cG9ydH1gKTsKKyAgICBleHBlY3Qoci5zdGRlcnIuc3BsaXQoIlxuIikuZmlsdGVyKHMgPT4gcy5zdGFydHNXaXRoKCJXYXJuaW5nOiIpKSkudG9FcXVhbChbYFdhcm5pbmc6IC0tcG9ydCAke3BvcnR9IGlzIG91dHNpZGUgMS02NTUzNTsgdGhlIHNlcnZlciB3aWxsIHN0YXJ0LCBidXQgZXZlcnkgZGFlbW9uIGNhbGwgd2lsbCBmYWlsLiBVc2UgdGhlIGRhZW1vbidzIHBvcnQgZnJvbSAncmlnIHN0YXR1cycuYF0pOworICAgIGV4cGVjdChyLm1lc3NhZ2VzKS50b0hhdmVMZW5ndGgoMik7CisgICAgZXhwZWN0KChyLm1lc3NhZ2VzWzFdIS5yZXN1bHQgYXMgeyB0b29sczogdW5rbm93bltdIH0pLnRvb2xzLmxlbmd0aCkudG9CZUdyZWF0ZXJUaGFuKDApOworICAgIGV4cGVjdChyLnN0ZG91dCkubm90LnRvQ29udGFpbigiV2FybmluZzoiKTsKKyAgfSwgMTVfMDAwKTsKKyAgaXQoInN0aWxsIHJlZnVzZXMgYSBub25udW1lcmljIHBvcnQgYmVmb3JlIGNyZWF0aW5nIGEgY2xpZW50IiwgYXN5bmMgKCkgPT4geworICAgIGNvbnN0IHIgPSBhd2FpdCBwcm9iZSgiYWJjIik7CisgICAgZXhwZWN0KHsgY29kZTogci5jb2RlLCBpbml0aWFsaXplZDogci5pbml0aWFsaXplZCwgbGlzdGVkOiByLmxpc3RlZCwgdGltZWRPdXQ6IHIudGltZWRPdXQgfSkudG9FcXVhbCh7IGNvZGU6IDEsIGluaXRpYWxpemVkOiBmYWxzZSwgbGlzdGVkOiBmYWxzZSwgdGltZWRPdXQ6IGZhbHNlIH0pOworICAgIGV4cGVjdChyLnN0ZGVycikudG9Db250YWluKCJJbnZhbGlkIHBvcnQgbnVtYmVyOiIpOworICAgIGV4cGVjdChyLnN0ZGVycikubm90LnRvQ29udGFpbigibmF0aXZlLWNsaWVudC11cmw6Iik7IGV4cGVjdChyLnN0ZG91dCkudG9CZSgiIik7CisgIH0sIDE1XzAwMCk7CisgIGl0KCJrZWVwcyBhIHZhbGlkIHBvcnQgd29ya2luZyB3aXRob3V0IGEgd2FybmluZyIsIGFzeW5jICgpID0+IHsKKyAgICBjb25zdCByID0gYXdhaXQgcHJvYmUoIjc0MzMiKTsKKyAgICBleHBlY3QoeyBjb2RlOiByLmNvZGUsIGluaXRpYWxpemVkOiByLmluaXRpYWxpemVkLCBsaXN0ZWQ6IHIubGlzdGVkLCB0aW1lZE91dDogci50aW1lZE91dCB9KS50b0VxdWFsKHsgY29kZTogMCwgaW5pdGlhbGl6ZWQ6IHRydWUsIGxpc3RlZDogdHJ1ZSwgdGltZWRPdXQ6IGZhbHNlIH0pOworICAgIGV4cGVjdChyLnN0ZGVycikubm90LnRvQ29udGFpbigiV2FybmluZzoiKTsgZXhwZWN0KHIubWVzc2FnZXMpLnRvSGF2ZUxlbmd0aCgyKTsKKyAgfSwgMTVfMDAwKTsKK30pOwpkaWZmIC0tZ2l0IGEvcGFja2FnZXMvY2xpL3Rlc3QvbWNwLXNlcnZlLXBvcnQudGVzdC50cyBiL3BhY2thZ2VzL2NsaS90ZXN0L21jcC1zZXJ2ZS1wb3J0LnRlc3QudHMKaW5kZXggNjE0ODFjM2UzOGNhOTMwNzdjYjcxZmIzYzUxNTI2NTdiNWFiZTFjYS4uZjE5YTJiZWY4NWY5NmQ0MWM0ZTkyODYyMDkwYTZkYTZkYjBmMjdlOSAxMDA2NDQKLS0tIGEvcGFja2FnZXMvY2xpL3Rlc3QvbWNwLXNlcnZlLXBvcnQudGVzdC50cworKysgYi9wYWNrYWdlcy9jbGkvdGVzdC9tY3Atc2VydmUtcG9ydC50ZXN0LnRzCkBAIC0zLDYgKzMsMTcgQEAgaW1wb3J0IHsgbWNwQ29tbWFuZCB9IGZyb20gIi4uL3NyYy9jb21tYW5kcy9tY3AuanMiOwogaW1wb3J0IHsgRGFlbW9uQ2xpZW50IH0gZnJvbSAiLi4vc3JjL2NsaWVudC5qcyI7CiBpbXBvcnQgdHlwZSB7IFN0YXR1c0RlcHMgfSBmcm9tICIuLi9zcmMvY29tbWFuZHMvc3RhdHVzLmpzIjsKIAorLy8gVGhpcyB1bml0IGxhbmUgb2JzZXJ2ZXMgcm91dGluZyB3aXRob3V0IG9wZW5pbmcgYSBzdGRpbyBzZXNzaW9uLiBOYXRpdmUgcHJvdG9jb2wgdGVzdHMKKy8vIHNlcGFyYXRlbHkgZXhlcmNpc2UgaW5pdGlhbGl6ZSBhbmQgdG9vbHMvbGlzdCB0aHJvdWdoIHRoZSByZWFsIE1DUCB0cmFuc3BvcnQuCit2aS5tb2NrKCIuLi9zcmMvbWNwLXNlcnZlci5qcyIsICgpID0+ICh7IGNyZWF0ZU1jcFNlcnZlcjogKCkgPT4geworICBjb25zdCBzZXJ2ZXIgPSB7IG9uY2xvc2U6IHVuZGVmaW5lZCBhcyB1bmRlZmluZWQgfCAoKCkgPT4gdm9pZCkgfTsKKyAgcmV0dXJuIHsgc2VydmVyLCBjb25uZWN0OiBhc3luYyAoKSA9PiB7IHNlcnZlci5vbmNsb3NlPy4oKTsgfSwgY2xvc2U6IGFzeW5jICgpID0+IHt9IH07Cit9IH0pKTsKK3ZpLm1vY2soIi4uL3NyYy9kYWVtb24tbGlmZWN5Y2xlLmpzIiwgYXN5bmMgKGltcG9ydE9yaWdpbmFsKSA9PiAoeworICAuLi5hd2FpdCBpbXBvcnRPcmlnaW5hbDx0eXBlb2YgaW1wb3J0KCIuLi9zcmMvZGFlbW9uLWxpZmVjeWNsZS5qcyIpPigpLAorICBnZXREYWVtb25TdGF0dXM6IHZpLmZuKGFzeW5jICgpID0+ICh7IHN0YXRlOiAicnVubmluZyIsIHBvcnQ6IDc0MzMgfSkpLAorfSkpOworCiBmdW5jdGlvbiBkZXBzKCk6IHsgZGVwczogU3RhdHVzRGVwczsgY2xpZW50RmFjdG9yeTogUmV0dXJuVHlwZTx0eXBlb2YgdmkuZm4+IH0gewogICBjb25zdCBjbGllbnRGYWN0b3J5ID0gdmkuZm4oKHVybDogc3RyaW5nKSA9PiBuZXcgRGFlbW9uQ2xpZW50KHVybCkpOwogICByZXR1cm4geyBkZXBzOiB7IGxpZmVjeWNsZURlcHM6IHt9IGFzIG5ldmVyLCBjbGllbnRGYWN0b3J5IH0sIGNsaWVudEZhY3RvcnkgfTsKQEAgLTExLDEyICsyMiwzMiBAQCBmdW5jdGlvbiBkZXBzKCk6IHsgZGVwczogU3RhdHVzRGVwczsgY2xpZW50RmFjdG9yeTogUmV0dXJuVHlwZTx0eXBlb2YgdmkuZm4+IH0gewogZGVzY3JpYmUoInJpZyBtY3Agc2VydmUgLS1wb3J0IiwgKCkgPT4gewogICBhZnRlckVhY2goKCkgPT4geyBwcm9jZXNzLmV4aXRDb2RlID0gdW5kZWZpbmVkOyB2aS5yZXN0b3JlQWxsTW9ja3MoKTsgfSk7CiAKLSAgaXQuZWFjaChbImFiYyIsICIwIiwgIi0xIiwgIjY1NTM2IiwgIjk5OTk5Il0pKCJyZWZ1c2VzICVzIGJlZm9yZSBzdGFydGluZyB0aGUgc2VydmVyIiwgYXN5bmMgKHBvcnQpID0+IHsKKyAgaXQoInJlZnVzZXMgYSBub25udW1lcmljIHBvcnQgYmVmb3JlIHN0YXJ0aW5nIHRoZSBzZXJ2ZXIiLCBhc3luYyAoKSA9PiB7CiAgICAgY29uc3QgZXJyID0gdmkuc3B5T24oY29uc29sZSwgImVycm9yIikubW9ja0ltcGxlbWVudGF0aW9uKCgpID0+IHt9KTsKICAgICBjb25zdCB7IGRlcHM6IGQsIGNsaWVudEZhY3RvcnkgfSA9IGRlcHMoKTsKLSAgICBhd2FpdCBtY3BDb21tYW5kKGQpLnBhcnNlQXN5bmMoWyJzZXJ2ZSIsICItLXBvcnQiLCBwb3J0XSwgeyBmcm9tOiAidXNlciIgfSk7CisgICAgYXdhaXQgbWNwQ29tbWFuZChkKS5wYXJzZUFzeW5jKFsic2VydmUiLCAiLS1wb3J0IiwgImFiYyJdLCB7IGZyb206ICJ1c2VyIiB9KTsKICAgICBleHBlY3QocHJvY2Vzcy5leGl0Q29kZSkudG9CZSgxKTsKLSAgICBleHBlY3QoZXJyKS50b0hhdmVCZWVuQ2FsbGVkV2l0aChleHBlY3Quc3RyaW5nQ29udGFpbmluZygiSW52YWxpZCBwb3J0IG51bWJlciIpKTsKKyAgICBleHBlY3QoZXJyKS50b0hhdmVCZWVuQ2FsbGVkV2l0aCgiSW52YWxpZCBwb3J0IG51bWJlcjogYWJjIik7CiAgICAgZXhwZWN0KGNsaWVudEZhY3RvcnkpLm5vdC50b0hhdmVCZWVuQ2FsbGVkKCk7CiAgIH0pOworCisgIGl0LmVhY2goWyIwIiwgIi0xIiwgIjY1NTM2IiwgIjk5OTk5Il0pKCJzdGFydHMgd2l0aCB0aGUgb3JpZ2luYWwgJXMgcG9ydCBhbmQgb25lIHN0ZGVyciB3YXJuaW5nIiwgYXN5bmMgKHBvcnQpID0+IHsKKyAgICBjb25zdCBlcnIgPSB2aS5zcHlPbihjb25zb2xlLCAiZXJyb3IiKS5tb2NrSW1wbGVtZW50YXRpb24oKCkgPT4ge30pOworICAgIGNvbnN0IG91dCA9IHZpLnNweU9uKGNvbnNvbGUsICJsb2ciKS5tb2NrSW1wbGVtZW50YXRpb24oKCkgPT4ge30pOworICAgIGNvbnN0IHsgZGVwczogZCwgY2xpZW50RmFjdG9yeSB9ID0gZGVwcygpOworICAgIGF3YWl0IG1jcENvbW1hbmQoZCkucGFyc2VBc3luYyhbInNlcnZlIiwgIi0tcG9ydCIsIHBvcnRdLCB7IGZyb206ICJ1c2VyIiB9KTsKKyAgICBleHBlY3QocHJvY2Vzcy5leGl0Q29kZSkudG9CZVVuZGVmaW5lZCgpOworICAgIGV4cGVjdChjbGllbnRGYWN0b3J5KS50b0hhdmVCZWVuQ2FsbGVkV2l0aChgaHR0cDovLzEyNy4wLjAuMToke3BvcnR9YCk7CisgICAgZXhwZWN0KGVycikudG9IYXZlQmVlbkNhbGxlZEV4YWN0bHlPbmNlV2l0aChgV2FybmluZzogLS1wb3J0ICR7cG9ydH0gaXMgb3V0c2lkZSAxLTY1NTM1OyB0aGUgc2VydmVyIHdpbGwgc3RhcnQsIGJ1dCBldmVyeSBkYWVtb24gY2FsbCB3aWxsIGZhaWwuIFVzZSB0aGUgZGFlbW9uJ3MgcG9ydCBmcm9tICdyaWcgc3RhdHVzJy5gKTsKKyAgICBleHBlY3Qob3V0KS5ub3QudG9IYXZlQmVlbkNhbGxlZCgpOworICB9KTsKKworICBpdC5lYWNoKFtbIiIsICI3NDMzIl0sIFsiNjU1MzUiLCAiNjU1MzUiXSwgWyI3NDMzc3VmZml4IiwgIjc0MzMiXV0pKCJwcmVzZXJ2ZXMgY29tcGF0aWJsZSAlaiByb3V0aW5nIiwgYXN5bmMgKHBvcnQsIGV4cGVjdGVkKSA9PiB7CisgICAgY29uc3QgZXJyID0gdmkuc3B5T24oY29uc29sZSwgImVycm9yIikubW9ja0ltcGxlbWVudGF0aW9uKCgpID0+IHt9KTsKKyAgICBjb25zdCB7IGRlcHM6IGQsIGNsaWVudEZhY3RvcnkgfSA9IGRlcHMoKTsKKyAgICBhd2FpdCBtY3BDb21tYW5kKGQpLnBhcnNlQXN5bmMoWyJzZXJ2ZSIsICItLXBvcnQiLCBwb3J0XSwgeyBmcm9tOiAidXNlciIgfSk7CisgICAgZXhwZWN0KHByb2Nlc3MuZXhpdENvZGUpLnRvQmVVbmRlZmluZWQoKTsKKyAgICBleHBlY3QoY2xpZW50RmFjdG9yeSkudG9IYXZlQmVlbkNhbGxlZFdpdGgoYGh0dHA6Ly8xMjcuMC4wLjE6JHtleHBlY3RlZH1gKTsKKyAgICBleHBlY3QoZXJyKS5ub3QudG9IYXZlQmVlbkNhbGxlZCgpOworICB9KTsKIH0pOwo='')
+
+        assert hashlib.sha256(p).hexdigest()==''5189fdd06f61b5382d667a7d8402efaadcbdd6e7a7f0df633cdd4462baa67d8a''
+
+        subprocess.run([''git'',''apply'',''--intent-to-add'',''-''],input=p,check=True)
+
+        pathlib.Path(''/tmp/1416-expected.patch'').write_bytes(p)
+
+        '
+    - name: baseline source before
+      shell: python
+      env:
+        PROOF_POINT: before
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        a=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert a==pathlib.Path(''/tmp/1416-expected.patch'').read_bytes()
+
+        assert hashlib.sha256(a).hexdigest()==''5189fdd06f61b5382d667a7d8402efaadcbdd6e7a7f0df633cdd4462baa67d8a''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''], ''1416-''+''baseline''+''-''+os.environ[''PROOF_POINT'']+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(a).hexdigest()}))
+
+        '
+    - name: Actual baseline focused unit and native MCP processes
+      id: baseline
+      continue-on-error: true
+      run: "suite_root=$(mktemp -d \"$RUNNER_TEMP/opr-test.XXXXXX\")\nsuite_root=$(cd \"$suite_root\" && pwd -P)\nmkdir -p \"$suite_root/home\" \"$suite_root/bin\"\
+        \n# Same system bytes, nonprivileged mode; no system file is changed.\n/usr/bin/install -m 0755 /bin/ps \"$suite_root/bin/ps\"\n# Only this job's temporary\
+        \ sockets (including tmux) are reachable.\nenv -i HOME=\"$suite_root/home\" PATH=\"$PATH\" TMPDIR=\"$suite_root\" TMUX_TMPDIR=\"$suite_root\" \\\n  CI=true\
+        \ TERM=xterm-256color RUNNER_TEMP=\"$RUNNER_TEMP\" \\\n  sandbox-exec -D IPC_ROOT=\"$suite_root\" -p '(version 1)(allow default)(deny network-outbound)(allow\
+        \ network-outbound (remote ip \"localhost:*\"))(allow network-outbound (subpath (param \"IPC_ROOT\")))' \\\n  /bin/bash -s \"cli\" <<'SUITE'\nset -euo pipefail\n\
+        node scripts/ci-macos-process-probe.mjs\n# The production readers use bare ps. Select real system bytes only after\n# self/owned-child observation and network/IPC\
+        \ confinement are proved.\nexport PATH=\"$TMPDIR/bin:$PATH\"\ntest \"$(command -v ps)\" = \"$TMPDIR/bin/ps\"\nexec npm run test -w \"packages/$1\" -- test/mcp-serve-port.test.ts\
+        \ test/mcp-serve-port-native.test.ts --reporter=json --outputFile=\"$RUNNER_TEMP/1416-baseline-vitest.json\"\nSUITE\n"
+    - name: baseline source after
+      if: always()
+      shell: python
+      env:
+        PROOF_POINT: after
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        a=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert a==pathlib.Path(''/tmp/1416-expected.patch'').read_bytes()
+
+        assert hashlib.sha256(a).hexdigest()==''5189fdd06f61b5382d667a7d8402efaadcbdd6e7a7f0df633cdd4462baa67d8a''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''], ''1416-''+''baseline''+''-''+os.environ[''PROOF_POINT'']+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(a).hexdigest()}))
+
+        '
+    - name: Validate exact baseline counts and infrastructure
+      shell: python
+      run: 'import json,pathlib,os
+
+        d=json.loads(pathlib.Path(os.environ[''RUNNER_TEMP''],''1416-baseline-vitest.json'').read_text())
+
+        aa=[a for t in d[''testResults''] for a in t[''assertionResults'']]
+
+        assert len(d[''testResults''])==2 and len(aa)==14 and all(not t.get(''message'') for t in d[''testResults'']),d
+
+        assert d[''numPendingTests'']==0 and d[''numTodoTests'']==0
+
+        assert d[''numFailedTests'']==9 and d[''numPassedTests'']==5,d
+
+        assert sum(a[''status'']==''failed'' for t in d[''testResults''] if t[''name''].endswith(''mcp-serve-port-native.test.ts'') for a in t[''assertionResults''])==4
+
+        '
+    - name: Apply exact candidate packet
+      shell: python
+      run: 'import pathlib,subprocess,base64,hashlib
+
+        assert subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip()==''fbca021e59906e197f3fa835ec932801886c6d76''
+
+        subprocess.run([''git'',''reset'',''--hard'',''HEAD''],check=True)
+
+        p=base64.b64decode(''ZGlmZiAtLWdpdCBhL3BhY2thZ2VzL2NsaS9zcmMvY29tbWFuZHMvbWNwLnRzIGIvcGFja2FnZXMvY2xpL3NyYy9jb21tYW5kcy9tY3AudHMKaW5kZXggZGQ5MzRlNTliYzA1ZmNiYThlYjgyMjY3NDVjNDA2NThkMDc0MDI5Mi4uZDNiMjc3ODYxMGUzNTA5Y2RhN2E4OTVjMWY4OTY5MWQzYTk5ZTJlNCAxMDA2NDQKLS0tIGEvcGFja2FnZXMvY2xpL3NyYy9jb21tYW5kcy9tY3AudHMKKysrIGIvcGFja2FnZXMvY2xpL3NyYy9jb21tYW5kcy9tY3AudHMKQEAgLTI1LDEzICsyNSwxNSBAQCBleHBvcnQgZnVuY3Rpb24gbWNwQ29tbWFuZChkZXBzT3ZlcnJpZGU/OiBTdGF0dXNEZXBzKTogQ29tbWFuZCB7CiAgICAgICBsZXQgZGFlbW9uVXJsOiBzdHJpbmc7CiAgICAgICBpZiAob3B0cy5wb3J0KSB7CiAgICAgICAgIGNvbnN0IGRhZW1vblBvcnQgPSBwYXJzZUludChvcHRzLnBvcnQsIDEwKTsKLSAgICAgICAgLy8gQSBwb3J0IG91dHNpZGUgMS4uNjU1MzUgc3RhcnRlZCB0aGUgc2VydmVyIGFueXdheSwgYW5kIHRoZW4gZXZlcnkgdG9vbCBjYWxsIGZhaWxlZCB3aXRoCi0gICAgICAgIC8vICJGYWlsZWQgdG8gcGFyc2UgVVJMIi4gU2FtZSBwYXJzZUludCBhcyBiZWZvcmUsIHNvIGVhY2ggLS1wb3J0IHRoYXQgd29ya2VkIHN0aWxsIGRvZXMuCi0gICAgICAgIGlmIChOdW1iZXIuaXNOYU4oZGFlbW9uUG9ydCkgfHwgZGFlbW9uUG9ydCA8IDEgfHwgZGFlbW9uUG9ydCA+IDY1NTM1KSB7Ci0gICAgICAgICAgY29uc29sZS5lcnJvcihgSW52YWxpZCBwb3J0IG51bWJlcjogbXVzdCBiZSBhbiBpbnRlZ2VyIGluIFsxLCA2NTUzNV0sIGdvdCAiJHtvcHRzLnBvcnR9ImApOworICAgICAgICAvLyBLZWVwIHBhcnNlSW50IGNvbXBhdGliaWxpdHkgYW5kIGxldCBNQ1AgaG9zdHMgY29ubmVjdCBiZWZvcmUgYW55IGRhZW1vbiBjYWxsLgorICAgICAgICBpZiAoTnVtYmVyLmlzTmFOKGRhZW1vblBvcnQpKSB7CisgICAgICAgICAgY29uc29sZS5lcnJvcihgSW52YWxpZCBwb3J0IG51bWJlcjogJHtvcHRzLnBvcnR9YCk7CiAgICAgICAgICAgcHJvY2Vzcy5leGl0Q29kZSA9IDE7CiAgICAgICAgICAgcmV0dXJuOwogICAgICAgICB9CisgICAgICAgIGlmIChkYWVtb25Qb3J0IDwgMSB8fCBkYWVtb25Qb3J0ID4gNjU1MzUpIHsKKyAgICAgICAgICBjb25zb2xlLmVycm9yKGBXYXJuaW5nOiAtLXBvcnQgJHtvcHRzLnBvcnR9IGlzIG91dHNpZGUgMS02NTUzNTsgdGhlIHNlcnZlciB3aWxsIHN0YXJ0LCBidXQgZXZlcnkgZGFlbW9uIGNhbGwgd2lsbCBmYWlsLiBVc2UgdGhlIGRhZW1vbidzIHBvcnQgZnJvbSAncmlnIHN0YXR1cycuYCk7CisgICAgICAgIH0KICAgICAgICAgZGFlbW9uVXJsID0gYGh0dHA6Ly8xMjcuMC4wLjE6JHtkYWVtb25Qb3J0fWA7CiAgICAgICB9IGVsc2UgewogICAgICAgICBjb25zdCBzdGF0dXMgPSBhd2FpdCBnZXREYWVtb25TdGF0dXMoZGVwcy5saWZlY3ljbGVEZXBzKTsKZGlmZiAtLWdpdCBhL3BhY2thZ2VzL2NsaS90ZXN0L21jcC1zZXJ2ZS1wb3J0LW5hdGl2ZS50ZXN0LnRzIGIvcGFja2FnZXMvY2xpL3Rlc3QvbWNwLXNlcnZlLXBvcnQtbmF0aXZlLnRlc3QudHMKbmV3IGZpbGUgbW9kZSAxMDA2NDQKaW5kZXggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMC4uZDI1MzBkNmJkN2JjYjhhODMxNTY5NjQ5YmE5NzkyN2NlYzYwM2FjMgotLS0gL2Rldi9udWxsCisrKyBiL3BhY2thZ2VzL2NsaS90ZXN0L21jcC1zZXJ2ZS1wb3J0LW5hdGl2ZS50ZXN0LnRzCkBAIC0wLDAgKzEsNTYgQEAKK2ltcG9ydCB7IGRlc2NyaWJlLCBpdCwgZXhwZWN0IH0gZnJvbSAidml0ZXN0IjsKK2ltcG9ydCB7IHNwYXduIH0gZnJvbSAibm9kZTpjaGlsZF9wcm9jZXNzIjsKKworYXN5bmMgZnVuY3Rpb24gcHJvYmUocG9ydDogc3RyaW5nKSB7CisgIGNvbnN0IHNvdXJjZSA9IG5ldyBVUkwoIi4uL3NyYy9jb21tYW5kcy9tY3AudHMiLCBpbXBvcnQubWV0YS51cmwpLmhyZWY7CisgIGNvbnN0IGNsaWVudCA9IG5ldyBVUkwoIi4uL3NyYy9jbGllbnQudHMiLCBpbXBvcnQubWV0YS51cmwpLmhyZWY7CisgIGNvbnN0IHNjcmlwdCA9IGBpbXBvcnQgeyBtY3BDb21tYW5kIH0gZnJvbSAke0pTT04uc3RyaW5naWZ5KHNvdXJjZSl9OyBpbXBvcnQgeyBEYWVtb25DbGllbnQgfSBmcm9tICR7SlNPTi5zdHJpbmdpZnkoY2xpZW50KX07IGF3YWl0IG1jcENvbW1hbmQoeyBsaWZlY3ljbGVEZXBzOiB7fSwgY2xpZW50RmFjdG9yeTogdXJsID0+IHsgY29uc29sZS5lcnJvcigibmF0aXZlLWNsaWVudC11cmw6IiArIHVybCk7IHJldHVybiBuZXcgRGFlbW9uQ2xpZW50KHVybCk7IH0gfSkucGFyc2VBc3luYyhbInNlcnZlIiwgIi0tcG9ydCIsICR7SlNPTi5zdHJpbmdpZnkocG9ydCl9XSwgeyBmcm9tOiAidXNlciIgfSk7YDsKKyAgY29uc3QgY2hpbGQgPSBzcGF3bihwcm9jZXNzLmV4ZWNQYXRoLCBbIi0taW1wb3J0IiwgInRzeCIsICItLWlucHV0LXR5cGU9bW9kdWxlIiwgIi1lIiwgc2NyaXB0XSwgeyBzdGRpbzogWyJwaXBlIiwgInBpcGUiLCAicGlwZSJdIH0pOworICBsZXQgc3Rkb3V0ID0gIiIsIHN0ZGVyciA9ICIiLCBwZW5kaW5nID0gIiIsIGluaXRpYWxpemVkID0gZmFsc2UsIGxpc3RlZCA9IGZhbHNlLCB0aW1lZE91dCA9IGZhbHNlOworICBjb25zdCBtZXNzYWdlczogQXJyYXk8UmVjb3JkPHN0cmluZywgdW5rbm93bj4+ID0gW107CisgIGNvbnN0IHRpbWVyID0gc2V0VGltZW91dCgoKSA9PiB7IHRpbWVkT3V0ID0gdHJ1ZTsgY2hpbGQua2lsbCgiU0lHS0lMTCIpOyB9LCAxMF8wMDApOworICBjaGlsZC5zdGRpbi5vbigiZXJyb3IiLCAoKSA9PiB7fSk7CisgIGNoaWxkLnN0ZGVyci5vbigiZGF0YSIsIGIgPT4geyBzdGRlcnIgKz0gYjsgfSk7CisgIGNoaWxkLnN0ZG91dC5vbigiZGF0YSIsIGIgPT4geworICAgIHN0ZG91dCArPSBiOyBwZW5kaW5nICs9IGI7CisgICAgd2hpbGUgKHBlbmRpbmcuaW5jbHVkZXMoIlxuIikpIHsKKyAgICAgIGNvbnN0IGkgPSBwZW5kaW5nLmluZGV4T2YoIlxuIik7IGNvbnN0IGxpbmUgPSBwZW5kaW5nLnNsaWNlKDAsIGkpOyBwZW5kaW5nID0gcGVuZGluZy5zbGljZShpICsgMSk7CisgICAgICBsZXQgbWVzc2FnZTogUmVjb3JkPHN0cmluZywgdW5rbm93bj47CisgICAgICB0cnkgeyBtZXNzYWdlID0gSlNPTi5wYXJzZShsaW5lKTsgfSBjYXRjaCB7IGNoaWxkLmtpbGwoIlNJR0tJTEwiKTsgcmV0dXJuOyB9CisgICAgICBtZXNzYWdlcy5wdXNoKG1lc3NhZ2UpOworICAgICAgaWYgKG1lc3NhZ2UuaWQgPT09IDEgJiYgbWVzc2FnZS5yZXN1bHQpIHsKKyAgICAgICAgaW5pdGlhbGl6ZWQgPSB0cnVlOworICAgICAgICBjaGlsZC5zdGRpbi53cml0ZShKU09OLnN0cmluZ2lmeSh7IGpzb25ycGM6ICIyLjAiLCBtZXRob2Q6ICJub3RpZmljYXRpb25zL2luaXRpYWxpemVkIiB9KSArICJcbiIpOworICAgICAgICBjaGlsZC5zdGRpbi53cml0ZShKU09OLnN0cmluZ2lmeSh7IGpzb25ycGM6ICIyLjAiLCBpZDogMiwgbWV0aG9kOiAidG9vbHMvbGlzdCIsIHBhcmFtczoge30gfSkgKyAiXG4iKTsKKyAgICAgIH0KKyAgICAgIGlmIChtZXNzYWdlLmlkID09PSAyICYmIG1lc3NhZ2UucmVzdWx0KSB7IGxpc3RlZCA9IHRydWU7IGNoaWxkLnN0ZGluLmVuZCgpOyB9CisgICAgfQorICB9KTsKKyAgY2hpbGQuc3RkaW4ud3JpdGUoSlNPTi5zdHJpbmdpZnkoeyBqc29ucnBjOiAiMi4wIiwgaWQ6IDEsIG1ldGhvZDogImluaXRpYWxpemUiLCBwYXJhbXM6IHsgcHJvdG9jb2xWZXJzaW9uOiAiMjAyNC0xMS0wNSIsIGNhcGFiaWxpdGllczoge30sIGNsaWVudEluZm86IHsgbmFtZTogIm93bmVkLXBvcnQtcHJvYmUiLCB2ZXJzaW9uOiAiMSIgfSB9IH0pICsgIlxuIik7CisgIGNvbnN0IGNvZGUgPSBhd2FpdCBuZXcgUHJvbWlzZTxudW1iZXIgfCBudWxsPigocmVzb2x2ZSwgcmVqZWN0KSA9PiB7IGNoaWxkLm9uY2UoImNsb3NlIiwgcmVzb2x2ZSk7IGNoaWxkLm9uY2UoImVycm9yIiwgcmVqZWN0KTsgfSk7CisgIGNsZWFyVGltZW91dCh0aW1lcik7CisgIHJldHVybiB7IGNvZGUsIHN0ZG91dCwgc3RkZXJyLCBtZXNzYWdlcywgaW5pdGlhbGl6ZWQsIGxpc3RlZCwgdGltZWRPdXQsIHBlbmRpbmcgfTsKK30KKworZGVzY3JpYmUoIm5hdGl2ZSBNQ1Agc3RkaW8gcG9ydCBzdGFydHVwIiwgKCkgPT4geworICBpdC5lYWNoKFsiMCIsICItMSIsICI2NTUzNiIsICI5OTk5OSJdKSgiaW5pdGlhbGl6ZXMgYW5kIGxpc3RzIHRvb2xzIHdpdGggJXMgd2hpbGUgd2FybmluZyBvbmx5IG9uIHN0ZGVyciIsIGFzeW5jIHBvcnQgPT4geworICAgIGNvbnN0IHIgPSBhd2FpdCBwcm9iZShwb3J0KTsKKyAgICBleHBlY3QoeyBjb2RlOiByLmNvZGUsIGluaXRpYWxpemVkOiByLmluaXRpYWxpemVkLCBsaXN0ZWQ6IHIubGlzdGVkLCB0aW1lZE91dDogci50aW1lZE91dCwgcGVuZGluZzogci5wZW5kaW5nIH0pLnRvRXF1YWwoeyBjb2RlOiAwLCBpbml0aWFsaXplZDogdHJ1ZSwgbGlzdGVkOiB0cnVlLCB0aW1lZE91dDogZmFsc2UsIHBlbmRpbmc6ICIiIH0pOworICAgIGV4cGVjdChyLnN0ZGVycikudG9Db250YWluKGBuYXRpdmUtY2xpZW50LXVybDpodHRwOi8vMTI3LjAuMC4xOiR7cG9ydH1gKTsKKyAgICBleHBlY3Qoci5zdGRlcnIuc3BsaXQoIlxuIikuZmlsdGVyKHMgPT4gcy5zdGFydHNXaXRoKCJXYXJuaW5nOiIpKSkudG9FcXVhbChbYFdhcm5pbmc6IC0tcG9ydCAke3BvcnR9IGlzIG91dHNpZGUgMS02NTUzNTsgdGhlIHNlcnZlciB3aWxsIHN0YXJ0LCBidXQgZXZlcnkgZGFlbW9uIGNhbGwgd2lsbCBmYWlsLiBVc2UgdGhlIGRhZW1vbidzIHBvcnQgZnJvbSAncmlnIHN0YXR1cycuYF0pOworICAgIGV4cGVjdChyLm1lc3NhZ2VzKS50b0hhdmVMZW5ndGgoMik7CisgICAgZXhwZWN0KChyLm1lc3NhZ2VzWzFdIS5yZXN1bHQgYXMgeyB0b29sczogdW5rbm93bltdIH0pLnRvb2xzLmxlbmd0aCkudG9CZUdyZWF0ZXJUaGFuKDApOworICAgIGV4cGVjdChyLnN0ZG91dCkubm90LnRvQ29udGFpbigiV2FybmluZzoiKTsKKyAgfSwgMTVfMDAwKTsKKyAgaXQoInN0aWxsIHJlZnVzZXMgYSBub25udW1lcmljIHBvcnQgYmVmb3JlIGNyZWF0aW5nIGEgY2xpZW50IiwgYXN5bmMgKCkgPT4geworICAgIGNvbnN0IHIgPSBhd2FpdCBwcm9iZSgiYWJjIik7CisgICAgZXhwZWN0KHsgY29kZTogci5jb2RlLCBpbml0aWFsaXplZDogci5pbml0aWFsaXplZCwgbGlzdGVkOiByLmxpc3RlZCwgdGltZWRPdXQ6IHIudGltZWRPdXQgfSkudG9FcXVhbCh7IGNvZGU6IDEsIGluaXRpYWxpemVkOiBmYWxzZSwgbGlzdGVkOiBmYWxzZSwgdGltZWRPdXQ6IGZhbHNlIH0pOworICAgIGV4cGVjdChyLnN0ZGVycikudG9Db250YWluKCJJbnZhbGlkIHBvcnQgbnVtYmVyOiIpOworICAgIGV4cGVjdChyLnN0ZGVycikubm90LnRvQ29udGFpbigibmF0aXZlLWNsaWVudC11cmw6Iik7IGV4cGVjdChyLnN0ZG91dCkudG9CZSgiIik7CisgIH0sIDE1XzAwMCk7CisgIGl0KCJrZWVwcyBhIHZhbGlkIHBvcnQgd29ya2luZyB3aXRob3V0IGEgd2FybmluZyIsIGFzeW5jICgpID0+IHsKKyAgICBjb25zdCByID0gYXdhaXQgcHJvYmUoIjc0MzMiKTsKKyAgICBleHBlY3QoeyBjb2RlOiByLmNvZGUsIGluaXRpYWxpemVkOiByLmluaXRpYWxpemVkLCBsaXN0ZWQ6IHIubGlzdGVkLCB0aW1lZE91dDogci50aW1lZE91dCB9KS50b0VxdWFsKHsgY29kZTogMCwgaW5pdGlhbGl6ZWQ6IHRydWUsIGxpc3RlZDogdHJ1ZSwgdGltZWRPdXQ6IGZhbHNlIH0pOworICAgIGV4cGVjdChyLnN0ZGVycikubm90LnRvQ29udGFpbigiV2FybmluZzoiKTsgZXhwZWN0KHIubWVzc2FnZXMpLnRvSGF2ZUxlbmd0aCgyKTsKKyAgfSwgMTVfMDAwKTsKK30pOwpkaWZmIC0tZ2l0IGEvcGFja2FnZXMvY2xpL3Rlc3QvbWNwLXNlcnZlLXBvcnQudGVzdC50cyBiL3BhY2thZ2VzL2NsaS90ZXN0L21jcC1zZXJ2ZS1wb3J0LnRlc3QudHMKaW5kZXggNjE0ODFjM2UzOGNhOTMwNzdjYjcxZmIzYzUxNTI2NTdiNWFiZTFjYS4uZjE5YTJiZWY4NWY5NmQ0MWM0ZTkyODYyMDkwYTZkYTZkYjBmMjdlOSAxMDA2NDQKLS0tIGEvcGFja2FnZXMvY2xpL3Rlc3QvbWNwLXNlcnZlLXBvcnQudGVzdC50cworKysgYi9wYWNrYWdlcy9jbGkvdGVzdC9tY3Atc2VydmUtcG9ydC50ZXN0LnRzCkBAIC0zLDYgKzMsMTcgQEAgaW1wb3J0IHsgbWNwQ29tbWFuZCB9IGZyb20gIi4uL3NyYy9jb21tYW5kcy9tY3AuanMiOwogaW1wb3J0IHsgRGFlbW9uQ2xpZW50IH0gZnJvbSAiLi4vc3JjL2NsaWVudC5qcyI7CiBpbXBvcnQgdHlwZSB7IFN0YXR1c0RlcHMgfSBmcm9tICIuLi9zcmMvY29tbWFuZHMvc3RhdHVzLmpzIjsKIAorLy8gVGhpcyB1bml0IGxhbmUgb2JzZXJ2ZXMgcm91dGluZyB3aXRob3V0IG9wZW5pbmcgYSBzdGRpbyBzZXNzaW9uLiBOYXRpdmUgcHJvdG9jb2wgdGVzdHMKKy8vIHNlcGFyYXRlbHkgZXhlcmNpc2UgaW5pdGlhbGl6ZSBhbmQgdG9vbHMvbGlzdCB0aHJvdWdoIHRoZSByZWFsIE1DUCB0cmFuc3BvcnQuCit2aS5tb2NrKCIuLi9zcmMvbWNwLXNlcnZlci5qcyIsICgpID0+ICh7IGNyZWF0ZU1jcFNlcnZlcjogKCkgPT4geworICBjb25zdCBzZXJ2ZXIgPSB7IG9uY2xvc2U6IHVuZGVmaW5lZCBhcyB1bmRlZmluZWQgfCAoKCkgPT4gdm9pZCkgfTsKKyAgcmV0dXJuIHsgc2VydmVyLCBjb25uZWN0OiBhc3luYyAoKSA9PiB7IHNlcnZlci5vbmNsb3NlPy4oKTsgfSwgY2xvc2U6IGFzeW5jICgpID0+IHt9IH07Cit9IH0pKTsKK3ZpLm1vY2soIi4uL3NyYy9kYWVtb24tbGlmZWN5Y2xlLmpzIiwgYXN5bmMgKGltcG9ydE9yaWdpbmFsKSA9PiAoeworICAuLi5hd2FpdCBpbXBvcnRPcmlnaW5hbDx0eXBlb2YgaW1wb3J0KCIuLi9zcmMvZGFlbW9uLWxpZmVjeWNsZS5qcyIpPigpLAorICBnZXREYWVtb25TdGF0dXM6IHZpLmZuKGFzeW5jICgpID0+ICh7IHN0YXRlOiAicnVubmluZyIsIHBvcnQ6IDc0MzMgfSkpLAorfSkpOworCiBmdW5jdGlvbiBkZXBzKCk6IHsgZGVwczogU3RhdHVzRGVwczsgY2xpZW50RmFjdG9yeTogUmV0dXJuVHlwZTx0eXBlb2YgdmkuZm4+IH0gewogICBjb25zdCBjbGllbnRGYWN0b3J5ID0gdmkuZm4oKHVybDogc3RyaW5nKSA9PiBuZXcgRGFlbW9uQ2xpZW50KHVybCkpOwogICByZXR1cm4geyBkZXBzOiB7IGxpZmVjeWNsZURlcHM6IHt9IGFzIG5ldmVyLCBjbGllbnRGYWN0b3J5IH0sIGNsaWVudEZhY3RvcnkgfTsKQEAgLTExLDEyICsyMiwzMiBAQCBmdW5jdGlvbiBkZXBzKCk6IHsgZGVwczogU3RhdHVzRGVwczsgY2xpZW50RmFjdG9yeTogUmV0dXJuVHlwZTx0eXBlb2YgdmkuZm4+IH0gewogZGVzY3JpYmUoInJpZyBtY3Agc2VydmUgLS1wb3J0IiwgKCkgPT4gewogICBhZnRlckVhY2goKCkgPT4geyBwcm9jZXNzLmV4aXRDb2RlID0gdW5kZWZpbmVkOyB2aS5yZXN0b3JlQWxsTW9ja3MoKTsgfSk7CiAKLSAgaXQuZWFjaChbImFiYyIsICIwIiwgIi0xIiwgIjY1NTM2IiwgIjk5OTk5Il0pKCJyZWZ1c2VzICVzIGJlZm9yZSBzdGFydGluZyB0aGUgc2VydmVyIiwgYXN5bmMgKHBvcnQpID0+IHsKKyAgaXQoInJlZnVzZXMgYSBub25udW1lcmljIHBvcnQgYmVmb3JlIHN0YXJ0aW5nIHRoZSBzZXJ2ZXIiLCBhc3luYyAoKSA9PiB7CiAgICAgY29uc3QgZXJyID0gdmkuc3B5T24oY29uc29sZSwgImVycm9yIikubW9ja0ltcGxlbWVudGF0aW9uKCgpID0+IHt9KTsKICAgICBjb25zdCB7IGRlcHM6IGQsIGNsaWVudEZhY3RvcnkgfSA9IGRlcHMoKTsKLSAgICBhd2FpdCBtY3BDb21tYW5kKGQpLnBhcnNlQXN5bmMoWyJzZXJ2ZSIsICItLXBvcnQiLCBwb3J0XSwgeyBmcm9tOiAidXNlciIgfSk7CisgICAgYXdhaXQgbWNwQ29tbWFuZChkKS5wYXJzZUFzeW5jKFsic2VydmUiLCAiLS1wb3J0IiwgImFiYyJdLCB7IGZyb206ICJ1c2VyIiB9KTsKICAgICBleHBlY3QocHJvY2Vzcy5leGl0Q29kZSkudG9CZSgxKTsKLSAgICBleHBlY3QoZXJyKS50b0hhdmVCZWVuQ2FsbGVkV2l0aChleHBlY3Quc3RyaW5nQ29udGFpbmluZygiSW52YWxpZCBwb3J0IG51bWJlciIpKTsKKyAgICBleHBlY3QoZXJyKS50b0hhdmVCZWVuQ2FsbGVkV2l0aCgiSW52YWxpZCBwb3J0IG51bWJlcjogYWJjIik7CiAgICAgZXhwZWN0KGNsaWVudEZhY3RvcnkpLm5vdC50b0hhdmVCZWVuQ2FsbGVkKCk7CiAgIH0pOworCisgIGl0LmVhY2goWyIwIiwgIi0xIiwgIjY1NTM2IiwgIjk5OTk5Il0pKCJzdGFydHMgd2l0aCB0aGUgb3JpZ2luYWwgJXMgcG9ydCBhbmQgb25lIHN0ZGVyciB3YXJuaW5nIiwgYXN5bmMgKHBvcnQpID0+IHsKKyAgICBjb25zdCBlcnIgPSB2aS5zcHlPbihjb25zb2xlLCAiZXJyb3IiKS5tb2NrSW1wbGVtZW50YXRpb24oKCkgPT4ge30pOworICAgIGNvbnN0IG91dCA9IHZpLnNweU9uKGNvbnNvbGUsICJsb2ciKS5tb2NrSW1wbGVtZW50YXRpb24oKCkgPT4ge30pOworICAgIGNvbnN0IHsgZGVwczogZCwgY2xpZW50RmFjdG9yeSB9ID0gZGVwcygpOworICAgIGF3YWl0IG1jcENvbW1hbmQoZCkucGFyc2VBc3luYyhbInNlcnZlIiwgIi0tcG9ydCIsIHBvcnRdLCB7IGZyb206ICJ1c2VyIiB9KTsKKyAgICBleHBlY3QocHJvY2Vzcy5leGl0Q29kZSkudG9CZVVuZGVmaW5lZCgpOworICAgIGV4cGVjdChjbGllbnRGYWN0b3J5KS50b0hhdmVCZWVuQ2FsbGVkV2l0aChgaHR0cDovLzEyNy4wLjAuMToke3BvcnR9YCk7CisgICAgZXhwZWN0KGVycikudG9IYXZlQmVlbkNhbGxlZEV4YWN0bHlPbmNlV2l0aChgV2FybmluZzogLS1wb3J0ICR7cG9ydH0gaXMgb3V0c2lkZSAxLTY1NTM1OyB0aGUgc2VydmVyIHdpbGwgc3RhcnQsIGJ1dCBldmVyeSBkYWVtb24gY2FsbCB3aWxsIGZhaWwuIFVzZSB0aGUgZGFlbW9uJ3MgcG9ydCBmcm9tICdyaWcgc3RhdHVzJy5gKTsKKyAgICBleHBlY3Qob3V0KS5ub3QudG9IYXZlQmVlbkNhbGxlZCgpOworICB9KTsKKworICBpdC5lYWNoKFtbIiIsICI3NDMzIl0sIFsiNjU1MzUiLCAiNjU1MzUiXSwgWyI3NDMzc3VmZml4IiwgIjc0MzMiXV0pKCJwcmVzZXJ2ZXMgY29tcGF0aWJsZSAlaiByb3V0aW5nIiwgYXN5bmMgKHBvcnQsIGV4cGVjdGVkKSA9PiB7CisgICAgY29uc3QgZXJyID0gdmkuc3B5T24oY29uc29sZSwgImVycm9yIikubW9ja0ltcGxlbWVudGF0aW9uKCgpID0+IHt9KTsKKyAgICBjb25zdCB7IGRlcHM6IGQsIGNsaWVudEZhY3RvcnkgfSA9IGRlcHMoKTsKKyAgICBhd2FpdCBtY3BDb21tYW5kKGQpLnBhcnNlQXN5bmMoWyJzZXJ2ZSIsICItLXBvcnQiLCBwb3J0XSwgeyBmcm9tOiAidXNlciIgfSk7CisgICAgZXhwZWN0KHByb2Nlc3MuZXhpdENvZGUpLnRvQmVVbmRlZmluZWQoKTsKKyAgICBleHBlY3QoY2xpZW50RmFjdG9yeSkudG9IYXZlQmVlbkNhbGxlZFdpdGgoYGh0dHA6Ly8xMjcuMC4wLjE6JHtleHBlY3RlZH1gKTsKKyAgICBleHBlY3QoZXJyKS5ub3QudG9IYXZlQmVlbkNhbGxlZCgpOworICB9KTsKIH0pOwo='')
+
+        assert hashlib.sha256(p).hexdigest()==''dd7fc6c597502fc64a073a9b8e5d21f2e04c1ea2fc25e98569cd30723e914e93''
+
+        subprocess.run([''git'',''apply'',''--intent-to-add'',''-''],input=p,check=True)
+
+        pathlib.Path(''/tmp/1416-expected.patch'').write_bytes(p)
+
+        '
+    - name: candidate source before
+      shell: python
+      env:
+        PROOF_POINT: before
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        a=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert a==pathlib.Path(''/tmp/1416-expected.patch'').read_bytes()
+
+        assert hashlib.sha256(a).hexdigest()==''dd7fc6c597502fc64a073a9b8e5d21f2e04c1ea2fc25e98569cd30723e914e93''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''], ''1416-''+''candidate''+''-''+os.environ[''PROOF_POINT'']+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(a).hexdigest()}))
+
+        '
+    - name: Actual candidate focused unit and native MCP processes
+      id: candidate
+      continue-on-error: false
+      run: "suite_root=$(mktemp -d \"$RUNNER_TEMP/opr-test.XXXXXX\")\nsuite_root=$(cd \"$suite_root\" && pwd -P)\nmkdir -p \"$suite_root/home\" \"$suite_root/bin\"\
+        \n# Same system bytes, nonprivileged mode; no system file is changed.\n/usr/bin/install -m 0755 /bin/ps \"$suite_root/bin/ps\"\n# Only this job's temporary\
+        \ sockets (including tmux) are reachable.\nenv -i HOME=\"$suite_root/home\" PATH=\"$PATH\" TMPDIR=\"$suite_root\" TMUX_TMPDIR=\"$suite_root\" \\\n  CI=true\
+        \ TERM=xterm-256color RUNNER_TEMP=\"$RUNNER_TEMP\" \\\n  sandbox-exec -D IPC_ROOT=\"$suite_root\" -p '(version 1)(allow default)(deny network-outbound)(allow\
+        \ network-outbound (remote ip \"localhost:*\"))(allow network-outbound (subpath (param \"IPC_ROOT\")))' \\\n  /bin/bash -s \"cli\" <<'SUITE'\nset -euo pipefail\n\
+        node scripts/ci-macos-process-probe.mjs\n# The production readers use bare ps. Select real system bytes only after\n# self/owned-child observation and network/IPC\
+        \ confinement are proved.\nexport PATH=\"$TMPDIR/bin:$PATH\"\ntest \"$(command -v ps)\" = \"$TMPDIR/bin/ps\"\nexec npm run test -w \"packages/$1\" -- test/mcp-serve-port.test.ts\
+        \ test/mcp-serve-port-native.test.ts --reporter=json --outputFile=\"$RUNNER_TEMP/1416-candidate-vitest.json\"\nSUITE\n"
+    - name: candidate source after
+      if: always()
+      shell: python
+      env:
+        PROOF_POINT: after
+      run: 'import subprocess,pathlib,hashlib,json,os
+
+        a=subprocess.check_output([''git'',''diff'',''--full-index'',''--binary'',''HEAD''])
+
+        assert a==pathlib.Path(''/tmp/1416-expected.patch'').read_bytes()
+
+        assert hashlib.sha256(a).hexdigest()==''dd7fc6c597502fc64a073a9b8e5d21f2e04c1ea2fc25e98569cd30723e914e93''
+
+        pathlib.Path(os.environ[''RUNNER_TEMP''], ''1416-''+''candidate''+''-''+os.environ[''PROOF_POINT'']+''.json'').write_text(json.dumps({''head'':subprocess.check_output([''git'',''rev-parse'',''HEAD''],text=True).strip(),''patch_sha256'':hashlib.sha256(a).hexdigest()}))
+
+        '
+    - name: Validate exact candidate counts and infrastructure
+      shell: python
+      run: 'import json,pathlib,os
+
+        d=json.loads(pathlib.Path(os.environ[''RUNNER_TEMP''],''1416-candidate-vitest.json'').read_text())
+
+        aa=[a for t in d[''testResults''] for a in t[''assertionResults'']]
+
+        assert len(d[''testResults''])==2 and len(aa)==14 and all(not t.get(''message'') for t in d[''testResults'']),d
+
+        assert d[''numPendingTests'']==0 and d[''numTodoTests'']==0
+
+        assert d[''numFailedTests'']==0 and d[''numPassedTests'']==14 and d[''success''],d
+
+        '
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: openrig1416-focused-${{ github.run_id }}
+        path: ${{ runner.temp }}/1416-*.json
+        if-no-files-found: error
