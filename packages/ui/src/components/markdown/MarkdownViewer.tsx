@@ -239,12 +239,13 @@ function stripFrontmatter(content: string): { frontmatter: Record<string, string
     return { frontmatter: null, body: content };
   }
   const rest = content.slice(content.indexOf("\n") + 1);
-  const endMatch = rest.match(/(^|\n)---(\n|$)/);
+  // The opener already accepts `---\r\n`; the closer and the lines between must too.
+  const endMatch = rest.match(/(^|\r?\n)---\r?(\n|$)/);
   if (!endMatch || endMatch.index === undefined) return { frontmatter: null, body: content };
   const fmText = rest.slice(0, endMatch.index);
   const body = rest.slice(endMatch.index + endMatch[0].length);
   const frontmatter: Record<string, string> = {};
-  for (const line of fmText.split("\n")) {
+  for (const line of fmText.split(/\r?\n/)) {
     const m = line.match(/^([\w.-]+):\s*(.+?)\s*$/);
     if (m) {
       let v = m[2]!;

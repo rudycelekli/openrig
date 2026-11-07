@@ -21,6 +21,22 @@ describe("UI Enhancement Pack v0 — MarkdownViewer", () => {
     expect(fm.textContent).toContain("active");
   });
 
+  it("renders CRLF frontmatter as the same metadata header, not as body text", () => {
+    const md = "---\r\nslice: my-slice\r\nstatus: active\r\n---\r\n# Title\r\nbody text";
+    const { container } = render(<MarkdownViewer content={md} />);
+    const fm = screen.getByTestId("markdown-frontmatter");
+    expect(fm.textContent).toContain("my-slice");
+    expect(fm.textContent).toContain("active");
+    expect(fm.textContent).not.toContain("\r");
+    expect(container.textContent).not.toContain("---");
+  });
+
+  it("hides CRLF frontmatter when hideFrontmatter prop is true", () => {
+    const { container } = render(<MarkdownViewer content={"---\r\nslice: x\r\n---\r\n# Title"} hideFrontmatter />);
+    expect(screen.queryByTestId("markdown-frontmatter")).toBeNull();
+    expect(container.textContent).not.toContain("slice: x");
+  });
+
   it("hides frontmatter when hideFrontmatter prop is true", () => {
     const md = `---\nslice: x\n---\n# Title`;
     render(<MarkdownViewer content={md} hideFrontmatter />);
